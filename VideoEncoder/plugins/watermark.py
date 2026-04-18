@@ -1,5 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from .. import ASSETS_DIR
 from ..utils.database.access_db import db
 from ..utils.helper import check_chat
 from ..utils.database.add_user import AddUserToDatabase
@@ -21,8 +22,7 @@ async def watermark_command(client, message):
         await AddUserToDatabase(client, message)
         user_id = message.from_user.id
 
-        watermark_path = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
-        os.makedirs('Assets', exist_ok=True)
+        watermark_path = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
         has_watermark = os.path.exists(watermark_path)
 
         text = "> <b>\"ᴡᴀɴɴᴀ sᴛᴀᴍᴘ ʏᴏᴜʀ ᴀᴜᴛʜᴏʀɪᴛʏ? ᴀᴅᴅ ᴀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴀɴᴅ ʟᴇᴛ ᴛʜᴇ ᴡᴏʀʟᴅ ᴋɴᴏᴡ ᴡʜᴏ ᴛʜᴇ ʙᴏss ɪs!\"</b>"
@@ -66,8 +66,7 @@ async def save_watermark(client, message):
 
             if current_time - start_time <= 30:
                 await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴡᴀᴛᴇʀᴍᴀʀᴋ...</b>")
-                path = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
-                os.makedirs('Assets', exist_ok=True)
+                path = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
                 await message.download(file_name=path)
                 if os.path.exists(path) and os.path.getsize(path) > 0:
                     await message.reply_text("<b>✅ ᴡᴀᴛᴇʀᴍᴀʀᴋ sᴀᴠᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>")
