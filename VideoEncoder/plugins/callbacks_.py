@@ -25,6 +25,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         from .watermark import watermark_sessions, WATERMARK_PIC
         from .interactive_handler import interactive_sessions
         from .metadata_plugin import update_metadata_msg
+        from .translator import translator_sessions
 
         # Close Button
 
@@ -535,6 +536,30 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                 )
             except Exception as e:
                 LOGGER.error(f"Error in help_callback: {e}")
+                await cb.message.edit_caption(caption=help_text)
+
+        # Translator Callbacks
+        elif cb.data == "hinglish_trigger":
+            translator_sessions[cb.from_user.id] = True
+            await cb.message.edit_caption(
+                caption="‣ ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ sᴜʙᴛɪᴛʟᴇ ꜰɪʟᴇ (.ass/.srt) ᴛᴏ ʙᴇɢɪɴ ᴛʜᴇ ᴀɪ ᴛʀᴀɴsʟᴀᴛɪᴏɴ"
+            )
+
+        elif cb.data == "translator_help":
+            help_text = "𝖧𝖤𝖫𝖯 𝖬𝖤𝖭𝖴\n" \
+                        "● /sthumb : ʀᴇᴘʟʏ ᴛᴏ ᴘʜᴏᴛᴏ ᴛᴏ sᴇᴛ ᴄᴏᴠᴇʀ.\n" \
+                        "● /hard_code : ᴇɴᴄᴏᴅᴇ ᴠɪᴅᴇᴏ ᴡɪᴛʜ sᴜʙs.\n" \
+                        "● /soft_code : ᴀᴅᴅ sᴜʙs ᴀs ᴍᴇᴛᴀᴅᴀᴛᴀ.\n" \
+                        "● /sub_extraxt : to extract sub file ᴍᴀᴅᴇ ʙʏ 𝐆𝐨𝐣𝐨."
+            try:
+                await cb.message.edit_media(
+                    media=InputMediaPhoto(
+                        "CAACAgIAAxkBAAELkMxm3vVjAAH6y1k64jE1AAGH4AABAgACAAQBAAMiEwAB3y4eEwABAAQwBA",
+                        caption=help_text
+                    )
+                )
+            except Exception as e:
+                LOGGER.error(f"Error in translator_help: {e}")
                 await cb.message.edit_caption(caption=help_text)
 
     except Exception as e:
