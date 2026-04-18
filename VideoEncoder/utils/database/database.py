@@ -39,7 +39,6 @@ class Database:
             upload_as_doc=False,
             crf=22,
             resize=False,
-            thumbnail=None,
             metadata_on=False,
             metadata_title="By: @Anime_Fury",
             metadata_author="By: @Anime_Fury",
@@ -292,13 +291,6 @@ class Database:
     async def set_sudo(self, sudo):
         await self.col2.update_one({'id': 'sudo'}, {'$set': {'sudo_': sudo}}, upsert=True)
 
-    # Thumbnail
-    async def set_thumbnail(self, id, thumbnail):
-        await self.col.update_one({'id': id}, {'$set': {'thumbnail': thumbnail}}, upsert=True)
-
-    async def get_thumbnail(self, id):
-        user = await self._get_user(id)
-        return user.get('thumbnail', None)
 
     # Metadata Settings
     async def set_metadata_on(self, id, metadata_on):

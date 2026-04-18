@@ -22,7 +22,6 @@ from ..video_utils.audio_selector import sessions
 async def callback_handlers(bot: Client, cb: CallbackQuery):
     try:
         # Import plugins on demand to avoid circular imports if any
-        from .thumbnail import thumbnail_sessions
         from .watermark import watermark_sessions, WATERMARK_PIC
         from .interactive_handler import interactive_sessions
         from .metadata_plugin import update_metadata_msg
@@ -374,20 +373,6 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif cb.data == "mode_document":
             await db.set_upload_as_doc(cb.from_user.id, True)
             await cb.answer("ᴘʀᴇғᴇʀᴇɴᴄᴇ sᴇᴛ ᴛᴏ ᴅᴏᴄᴜᴍᴇɴᴛ", show_alert=True)
-            await cb.message.delete()
-
-        # Thumbnail
-        elif cb.data == "set_thumb":
-            await cb.answer("ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs.", show_alert=True)
-            thumbnail_sessions[cb.from_user.id] = asyncio.get_event_loop().time()
-            await cb.message.reply_text("<b>ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs.</b>")
-
-        elif cb.data == "del_thumb":
-            await db.set_thumbnail(cb.from_user.id, None)
-            thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f"thumb_{cb.from_user.id}.jpg"))
-            if os.path.exists(thumb_path):
-                os.remove(thumb_path)
-            await cb.answer("ᴛʜᴜᴍʙɴᴀɪʟ ᴅᴇʟᴇᴛᴇᴅ!", show_alert=True)
             await cb.message.delete()
 
         # Watermark

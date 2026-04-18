@@ -25,7 +25,7 @@ async def hard_code_cmd(bot: Client, message: Message):
 
     thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
     if not (os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0):
-        await message.reply_text("❌ <b>ᴇʀʀᴏʀ: ᴛʜᴜᴍʙɴᴀɪʟ ɴᴏᴛ ғᴏᴜɴᴅ!</b>\n\nPlease set a thumbnail first using /thumbnail command before using /hard_code.")
+        await message.reply_text("❌ <b>ᴇʀʀᴏʀ: ᴛʜᴜᴍʙɴᴀɪʟ ɴᴏᴛ ғᴏᴜɴᴅ!</b>\n\nPlease set a thumbnail first using /sthumb command before using /hard_code.")
         return
 
     interactive_sessions[user_id] = {'step': 'subtitle', 'mode': 'hard_sub'}

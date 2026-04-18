@@ -6,7 +6,7 @@ import time
 from ... import app, download_dir, log, LOGGER, ASSETS_DIR
 from ..database.access_db import db
 from ..display_progress import progress_for_pyrogram
-from ..encoding import get_duration, get_thumbnail, get_width_height
+from ..encoding import get_duration, get_width_height
 
 
 async def upload_to_tg(new_file, message, msg):
@@ -17,25 +17,14 @@ async def upload_to_tg(new_file, message, msg):
 
     # Thumbnail Logic
     user_id = message.from_user.id
-    local_thumb = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
-    custom_thumb = await db.get_thumbnail(user_id)
-
-    if os.path.exists(local_thumb) and os.path.getsize(local_thumb) > 0:
-        thumb = local_thumb
-    elif custom_thumb:
-        thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f"temp_thumb_{user_id}.jpg"))
-        thumb = await app.download_media(custom_thumb, file_name=thumb_path)
-        if thumb:
-            thumb = os.path.abspath(thumb)
-    else:
-        thumb = get_thumbnail(new_file, download_dir, duration / 4)
-        if thumb:
-            thumb = os.path.abspath(thumb)
+    thumb = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
+    if not os.path.exists(thumb):
+        thumb = None
 
     # Ensure thumbnail is under 200KB for Telegram API
-    if thumb and isinstance(thumb, str) and os.path.exists(thumb) and os.path.getsize(thumb) > 200000:
-        # If it's too big, we just don't send it.
-        # Ideally we should resize it, but the requirement is to ensure it's under 200KB.
+    if thumb and os.path.getsize(thumb) > 200000:
+        # We could resize it, but for now we follow the pattern of skipping it if too large
+        # to prevent upload failure.
         thumb = None
 
     width, height = get_width_height(new_file)
@@ -45,13 +34,6 @@ async def upload_to_tg(new_file, message, msg):
     else:
         link = await upload_video(message, msg, new_file, filename,
                                   c_time, thumb, duration, width, height)
-
-    # Cleanup custom thumb download if it was used/downloaded
-    if custom_thumb and thumb and os.path.isfile(thumb):
-        try:
-            os.remove(thumb)
-        except Exception:
-            pass
 
     return link
 
