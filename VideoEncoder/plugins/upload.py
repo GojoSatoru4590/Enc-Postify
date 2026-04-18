@@ -7,8 +7,8 @@ import time
 from pyrogram import Client, filters
 from pyrogram.errors.exceptions.bad_request_400 import MessageIdInvalid
 
-from .. import download_dir, sudo_users
-from ..utils.encoding import get_duration, get_thumbnail, get_width_height
+from .. import download_dir, sudo_users, ASSETS_DIR
+from ..utils.encoding import get_duration, get_width_height
 from ..utils.helper import check_chat
 from ..utils.uploads.drive.upload import Uploader
 from ..utils.uploads.telegram import upload_doc, upload_video
@@ -48,7 +48,10 @@ async def videoupload(client, message):
         return
     filename = os.path.basename(file)
     duration = get_duration(file)
-    thumb = get_thumbnail(file, download_dir, duration / 4)
+    user_id = message.from_user.id
+    thumb = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
+    if not os.path.exists(thumb):
+        thumb = None
     width, height = get_width_height(file)
     text = f'Uploading {html.escape(file)}...'
     reply = await message.reply_text(text)

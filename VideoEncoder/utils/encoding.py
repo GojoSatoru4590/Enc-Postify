@@ -757,29 +757,6 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     return output_filepath
 
 
-def get_thumbnail(in_filename, path, ttl):
-    out_filename = os.path.join(path, str(time.time()) + ".jpg")
-    try:
-        # ffmpeg -ss <ttl> -i <in_filename> -vframes 1 -y <out_filename>
-        command = [
-            'ffmpeg', '-hide_banner', '-loglevel', 'error',
-            '-ss', str(ttl),
-            '-i', in_filename,
-            '-vframes', '1',
-            '-y', out_filename
-        ]
-        subprocess.run(command, check=True, capture_output=True)
-        if os.path.isfile(out_filename):
-            return out_filename
-        else:
-            LOGGER.warning(f"Thumbnail file not created: {out_filename}")
-            return None
-    except subprocess.CalledProcessError as e:
-        LOGGER.warning(f"Thumbnail generation failed (CalledProcessError): {e.stderr.decode().strip() if e.stderr else e}")
-        return None
-    except Exception as e:
-        LOGGER.warning(f"Thumbnail generation failed: {e}")
-        return None
 
 
 def get_duration(filepath):
