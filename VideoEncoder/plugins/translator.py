@@ -11,8 +11,11 @@ from ..utils.database.add_user import AddUserToDatabase
 from ..utils.helper import check_chat
 from ..utils.uploads.telegram import upload_doc
 
+class Config:
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 # Setup Gemini
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = Config.GEMINI_API_KEY
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-pro')
@@ -22,123 +25,27 @@ else:
 # user_id: True if waiting for subtitle file, "CANCELLED" if cancelled during process, "PROCESSING" when active
 translator_sessions = {}
 
-def get_translator_menu():
-    img_url = "https://graph.org/file/3b3e573290ea2f1ab272e-d0521dd8d5a1359e41.jpg"
-    text = "🌐 𝖠𝖨 𝖲𝖴𝖳𝖨𝖳𝖫𝖤 𝖳𝖱𝖠𝖭𝖲𝖫𝖠𝖳𝖮𝖱\n<blockquote expandable>➤ ᴛʀᴀɴsʟᴀᴛᴇ ʏᴏᴜʀ ᴀɴɪᴍᴇ/ᴍᴀɴʜᴡᴀ sᴜʙᴛɪᴛʟᴇs ᴜsɪɴɢ ᴀᴅᴠᴀɴᴄᴇᴅ ɢᴇᴍɪɴɪ ᴀɪ. ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ sᴛᴀʀᴛ.</blockquote>"
-
-    buttons = [
-        [
-            InlineKeyboardButton("ʜɪɴɢʟɪsʜ", callback_data="hinglish_trigger"),
-            InlineKeyboardButton("ʜᴇʟᴘ", callback_data="translator_help")
-        ],
-        [
-            InlineKeyboardButton("ᴄʟᴏsᴇ", callback_data="closeMeh")
-        ]
-    ]
-    return img_url, text, InlineKeyboardMarkup(buttons)
-
-def parse_srt(content):
-    blocks = re.split(r'\n\s*\n', content.strip())
-    parsed_blocks = []
-    for block in blocks:
-        lines = block.split('\n')
-        if len(lines) >= 3:
-            index = lines[0]
-            timestamp = lines[1]
-            text = "\n".join(lines[2:])
-            parsed_blocks.append({'index': index, 'timestamp': timestamp, 'text': text})
-        else:
-            parsed_blocks.append({'raw': block})
-    return parsed_blocks
-
-def parse_ass(content):
-    lines = content.splitlines()
-    header = []
-    events = []
-    in_events = False
-    for line in lines:
-        if line.strip().lower().startswith('[events]'):
-            in_events = True
-            header.append(line)
-            continue
-        if not in_events:
-            header.append(line)
-        else:
-            if line.startswith('Dialogue:'):
-                parts = line.split(',', 9)
-                if len(parts) == 10:
-                    events.append({'prefix': parts[0:9], 'text': parts[9]})
-                else:
-                    events.append({'raw': line})
-            else:
-                events.append({'raw': line})
-    return header, events
-
-async def translate_batch(batch_texts):
-    if not batch_texts:
-        return []
-
-    numbered_text = "\n".join([f"{i+1}: {text}" for i, text in enumerate(batch_texts)])
-    prompt = (
-        "You are a professional Anime/Manhwa translator. Translate the following numbered segments into natural Hinglish. "
-        "Professional tone. Keep the original vibe and all formatting like {\\pos(x,y)}. "
-        "Preserve the numbering format 'n: translated_text'. Output ONLY the translated segments.\n\n"
-        f"{numbered_text}"
-    )
-
-    try:
-        response = await asyncio.to_thread(model.generate_content, prompt)
-        lines = response.text.strip().splitlines()
-        translated_segments = []
-        for line in lines:
-            match = re.match(r'^\d+:\s*(.*)', line.strip())
-            if match:
-                translated_segments.append(match.group(1))
-
-        if len(translated_segments) != len(batch_texts):
-             LOGGER.warning(f"Batch translation mismatch: {len(translated_segments)} vs {len(batch_texts)}")
-             if len(translated_segments) > len(batch_texts):
-                 return translated_segments[:len(batch_texts)]
-             else:
-                 return translated_segments + batch_texts[len(translated_segments):]
-
-        return translated_segments
-    except Exception as e:
-        LOGGER.error(f"Gemini API Error: {e}")
-        return None
-
-def get_progress_bar(percentage):
-    completed = int(percentage / 10)
-    remaining = 10 - completed
-    return "▰" * completed + "▱" * remaining
-
-@Client.on_message(filters.command("translator") & filters.private)
-async def translator_cmd(bot: Client, message: Message):
-    c = await check_chat(message, chat='Both')
-    if not c:
-        return
-    await AddUserToDatabase(bot, message)
-
-    img_url, text, markup = get_translator_menu()
-
-    await message.reply_photo(
-        photo=img_url,
-        caption=text,
-        has_spoiler=True,
-        reply_markup=markup
-    )
-
-@Client.on_message(filters.document & filters.private, group=-1)
+@Client.on_message(filters.document & filters.regex(r'.*\.(ass|srt|ASS|SRT)$'), group=-1)
 async def translator_file_handler(bot: Client, message: Message):
+    print(f"DEBUG: File detected from {message.from_user.id}")
     user_id = message.from_user.id
-    if user_id not in translator_sessions or translator_sessions[user_id] == "CANCELLED":
-        return
 
-    if not message.document or not (message.document.file_name.lower().endswith(".ass") or message.document.file_name.lower().endswith(".srt")):
-        return
+    # Session Bypass: Respond to any valid document
+    if user_id not in translator_sessions or translator_sessions[user_id] == "CANCELLED":
+        translator_sessions[user_id] = True
 
     message.stop_propagation()
     translator_sessions[user_id] = "PROCESSING"
+
+    # Explicit API key check
+    if not Config.GEMINI_API_KEY:
+        await message.reply_text("API KEY MISSING IN CONFIG")
+        return
+
+    global model
+    if not model:
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-pro')
 
     msg = await message.reply_text("<code>Downloading file... ⏳</code>")
 
@@ -257,3 +164,109 @@ async def translator_file_handler(bot: Client, message: Message):
         if 'output_path' in locals() and os.path.exists(output_path):
             try: os.remove(output_path)
             except: pass
+
+def get_translator_menu():
+    img_url = "https://graph.org/file/3b3e573290ea2f1ab272e-d0521dd8d5a1359e41.jpg"
+    text = "🌐 𝖠𝖨 𝖲𝖴𝖳𝖨𝖳𝖫𝖤 𝖳𝖱𝖠𝖭𝖲𝖫𝖠𝖳𝖮𝖱\n<blockquote expandable>➤ ᴛʀᴀɴsʟᴀᴛᴇ ʏᴏᴜʀ ᴀɴɪᴍᴇ/ᴍᴀɴʜᴡᴀ sᴜʙᴛɪᴛʟᴇs ᴜsɪɴɢ ᴀᴅᴠᴀɴᴄᴇᴅ ɢᴇᴍɪɴɪ ᴀɪ. ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ sᴛᴀʀᴛ.</blockquote>"
+
+    buttons = [
+        [
+            InlineKeyboardButton("ʜɪɴɢʟɪsʜ", callback_data="hinglish_trigger"),
+            InlineKeyboardButton("ʜᴇʟᴘ", callback_data="translator_help")
+        ],
+        [
+            InlineKeyboardButton("ᴄʟᴏsᴇ", callback_data="closeMeh")
+        ]
+    ]
+    return img_url, text, InlineKeyboardMarkup(buttons)
+
+def parse_srt(content):
+    blocks = re.split(r'\n\s*\n', content.strip())
+    parsed_blocks = []
+    for block in blocks:
+        lines = block.split('\n')
+        if len(lines) >= 3:
+            index = lines[0]
+            timestamp = lines[1]
+            text = "\n".join(lines[2:])
+            parsed_blocks.append({'index': index, 'timestamp': timestamp, 'text': text})
+        else:
+            parsed_blocks.append({'raw': block})
+    return parsed_blocks
+
+def parse_ass(content):
+    lines = content.splitlines()
+    header = []
+    events = []
+    in_events = False
+    for line in lines:
+        if line.strip().lower().startswith('[events]'):
+            in_events = True
+            header.append(line)
+            continue
+        if not in_events:
+            header.append(line)
+        else:
+            if line.startswith('Dialogue:'):
+                parts = line.split(',', 9)
+                if len(parts) == 10:
+                    events.append({'prefix': parts[0:9], 'text': parts[9]})
+                else:
+                    events.append({'raw': line})
+            else:
+                events.append({'raw': line})
+    return header, events
+
+async def translate_batch(batch_texts):
+    if not batch_texts:
+        return []
+
+    numbered_text = "\n".join([f"{i+1}: {text}" for i, text in enumerate(batch_texts)])
+    prompt = (
+        "You are a professional Anime/Manhwa translator. Translate the following numbered segments into natural Hinglish. "
+        "Professional tone. Keep the original vibe and all formatting like {\\pos(x,y)}. "
+        "Preserve the numbering format 'n: translated_text'. Output ONLY the translated segments.\n\n"
+        f"{numbered_text}"
+    )
+
+    try:
+        response = await asyncio.to_thread(model.generate_content, prompt)
+        lines = response.text.strip().splitlines()
+        translated_segments = []
+        for line in lines:
+            match = re.match(r'^\d+:\s*(.*)', line.strip())
+            if match:
+                translated_segments.append(match.group(1))
+
+        if len(translated_segments) != len(batch_texts):
+             LOGGER.warning(f"Batch translation mismatch: {len(translated_segments)} vs {len(batch_texts)}")
+             if len(translated_segments) > len(batch_texts):
+                 return translated_segments[:len(batch_texts)]
+             else:
+                 return translated_segments + batch_texts[len(translated_segments):]
+
+        return translated_segments
+    except Exception as e:
+        LOGGER.error(f"Gemini API Error: {e}")
+        return None
+
+def get_progress_bar(percentage):
+    completed = int(percentage / 10)
+    remaining = 10 - completed
+    return "▰" * completed + "▱" * remaining
+
+@Client.on_message(filters.command("translator") & filters.private)
+async def translator_cmd(bot: Client, message: Message):
+    c = await check_chat(message, chat='Both')
+    if not c:
+        return
+    await AddUserToDatabase(bot, message)
+
+    img_url, text, markup = get_translator_menu()
+
+    await message.reply_photo(
+        photo=img_url,
+        caption=text,
+        has_spoiler=True,
+        reply_markup=markup
+    )
