@@ -2,8 +2,7 @@
 from os import getenv
 import logging
 import os
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ASSETS_DIR = os.path.join(BASE_DIR, 'Assets')
+ASSETS_DIR = os.path.join(os.getcwd(), 'Assets')
 if not os.path.exists(ASSETS_DIR):
     os.makedirs(ASSETS_DIR)
 

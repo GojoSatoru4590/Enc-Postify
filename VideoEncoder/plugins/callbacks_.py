@@ -384,7 +384,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
 
         elif cb.data == "del_thumb":
             await db.set_thumbnail(cb.from_user.id, None)
-            thumb_path = f"Assets/thumb_{cb.from_user.id}.jpg"
+            thumb_path = os.path.join(ASSETS_DIR, f"thumb_{cb.from_user.id}.jpg")
             if os.path.exists(thumb_path):
                 os.remove(thumb_path)
             await cb.answer("ᴛʜᴜᴍʙɴᴀɪʟ ᴅᴇʟᴇᴛᴇᴅ!", show_alert=True)
@@ -397,7 +397,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             await cb.message.reply_text("<b>ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴘʜᴏᴛᴏ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs.</b>")
 
         elif cb.data == "del_watermark":
-            path = f"Assets/watermark_{cb.from_user.id}.png"
+            path = os.path.join(ASSETS_DIR, f"watermark_{cb.from_user.id}.png")
             if os.path.exists(path):
                 os.remove(path)
                 await cb.answer("ᴡᴀᴛᴇʀᴍᴀʀᴋ ʀᴇᴍᴏᴠᴇᴅ!", show_alert=True)
@@ -426,7 +426,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
 
         elif cb.data == "back_watermark":
             user_id = cb.from_user.id
-            watermark_path = f"Assets/watermark_{user_id}.png"
+            watermark_path = os.path.join(ASSETS_DIR, f"watermark_{user_id}.png")
             has_watermark = os.path.exists(watermark_path)
             text = "> <b>\"ᴡᴀɴɴᴀ sᴛᴀᴍᴘ ʏᴏᴜʀ ᴀᴜᴛʜᴏʀɪᴛʏ? ᴀᴅᴅ ᴀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴀɴᴅ ʟᴇᴛ ᴛʜᴇ ᴡᴏʀʟᴅ ᴋɴᴏᴡ ᴡʜᴏ ᴛʜᴇ ʙᴏss ɪs!\"</b>"
             if has_watermark:

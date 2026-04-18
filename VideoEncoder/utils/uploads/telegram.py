@@ -58,6 +58,9 @@ async def upload_to_tg(new_file, message, msg):
 
 async def upload_video(message, msg, new_file, filename, c_time, thumb, duration, width, height):
     try:
+        if thumb:
+            print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
+            print(f"DEBUG: Full path is: {thumb}")
         resp = await message.reply_video(
             new_file,
             supports_streaming=True,
@@ -71,6 +74,9 @@ async def upload_video(message, msg, new_file, filename, c_time, thumb, duration
             progress_args=("Uploading ...", msg, c_time)
         )
         if resp:
+            if thumb:
+                print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
+                print(f"DEBUG: Full path is: {thumb}")
             await app.send_video(log, resp.video.file_id, thumb=thumb,
                                  caption=filename, duration=duration,
                                  width=width, height=height, parse_mode=None)
@@ -83,6 +89,9 @@ async def upload_video(message, msg, new_file, filename, c_time, thumb, duration
 
 async def upload_doc(message, msg, c_time, filename, new_file, thumb=None):
     try:
+        if thumb:
+            print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
+            print(f"DEBUG: Full path is: {thumb}")
         resp = await message.reply_document(
             new_file,
             caption=filename,
@@ -92,6 +101,9 @@ async def upload_doc(message, msg, c_time, filename, new_file, thumb=None):
         )
 
         if resp:
+            if thumb:
+                print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
+                print(f"DEBUG: Full path is: {thumb}")
             await app.send_document(log, resp.document.file_id, thumb=thumb, caption=filename, parse_mode=None)
 
         return resp.link

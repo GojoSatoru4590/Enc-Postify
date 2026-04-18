@@ -23,14 +23,18 @@ async def thumb_command(client, message):
         user_id = message.from_user.id
         thumbnail = await db.get_thumbnail(user_id)
 
-        thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
-        has_thumb = os.path.exists(thumb_path)
+        # Define absolute path
+        THUMB_DIR = os.path.join(os.getcwd(), "Assets")
+        THUMB_PATH = os.path.join(THUMB_DIR, f"thumb_{user_id}.jpg")
+        has_thumb = os.path.exists(THUMB_PATH)
 
         text = "> <b>\"ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴅᴅ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ\"</b>\n\n✨ Let's make your files look amazing! Send me a high-quality image to set as your custom cover."
 
         if has_thumb:
             btn_row1 = [InlineKeyboardButton("🔄 ᴄʜᴀɴɢᴇ ᴛʜᴜᴍʙɴᴀɪʟ", callback_data="set_thumb")]
-            photo = thumb_path
+            print(f"DEBUG: Does file exist? {os.path.exists(THUMB_PATH)}")
+            print(f"DEBUG: Full path is: {THUMB_PATH}")
+            photo = THUMB_PATH
         elif thumbnail:
             btn_row1 = [InlineKeyboardButton("🔄 ᴄʜᴀɴɢᴇ ᴛʜᴜᴍʙɴᴀɪʟ", callback_data="set_thumb")]
             photo = thumbnail
@@ -74,9 +78,11 @@ async def save_thumb(client, message):
             if current_time - start_time <= 30:
                 await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ...</b>")
                 await db.set_thumbnail(user_id, file_id)
-                thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
-                await message.download(file_name=thumb_path)
-                if os.path.exists(thumb_path):
+                # Define absolute path
+                THUMB_DIR = os.path.join(os.getcwd(), "Assets")
+                THUMB_PATH = os.path.join(THUMB_DIR, f"thumb_{user_id}.jpg")
+                await message.download(file_name=THUMB_PATH)
+                if os.path.exists(THUMB_PATH):
                     await message.reply("✅ Thumbnail saved!")
                 del thumbnail_sessions[user_id]
                 return
@@ -89,9 +95,11 @@ async def save_thumb(client, message):
         if message.caption and (message.caption == "/thumb" or message.caption == "/thumbnail"):
             await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ...</b>")
             await db.set_thumbnail(user_id, file_id)
-            thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
-            await message.download(file_name=thumb_path)
-            if os.path.exists(thumb_path):
+            # Define absolute path
+            THUMB_DIR = os.path.join(os.getcwd(), "Assets")
+            THUMB_PATH = os.path.join(THUMB_DIR, f"thumb_{user_id}.jpg")
+            await message.download(file_name=THUMB_PATH)
+            if os.path.exists(THUMB_PATH):
                 await message.reply("✅ Thumbnail saved!")
             
     except Exception as e:
