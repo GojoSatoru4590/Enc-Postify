@@ -11,13 +11,15 @@ class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 import google.generativeai as genai
+from google.generativeai.types import RequestOptions
 # 1. Force use stable v1 API
+print(f"DEBUG: Using API Version: {genai.__version__}")
 genai.configure(api_key=Config.GEMINI_API_KEY)
 # 2. Use the standard model name without 'models/' prefix
 model = genai.GenerativeModel('gemini-1.5-flash')
 # 3. Test the connection immediately
 try:
-    response = model.generate_content('test')
+    response = model.generate_content('test', request_options=RequestOptions(api_version='v1'))
     print("DEBUG: API Connection Successful")
 except Exception as e:
     print(f"DEBUG: Critical API Error: {e}")
@@ -69,7 +71,11 @@ async def translate_chunk(chunk_text):
 
     for attempt in range(2):
         try:
-            response = await asyncio.to_thread(model.generate_content, chunk_text)
+            response = await asyncio.to_thread(
+                model.generate_content,
+                chunk_text,
+                request_options=RequestOptions(api_version='v1')
+            )
             return response.text.strip()
         except Exception as e:
             error_msg = f'❌ Gemini Error: {e.message if hasattr(e, "message") else str(e)}'
