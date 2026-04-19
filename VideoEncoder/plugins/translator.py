@@ -24,6 +24,20 @@ SYSTEM_PROMPT = "You are a professional Anime/Manhwa translator. Read the Englis
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
 TRANSLATE_TEXT = "✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\nᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ."
 
+# Temporary storage for file metadata linked to message ID
+translation_data = {}
+
+SETUP_GUIDE_TEXT = (
+    "✨ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴜᴘ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\n"
+    "𝟷️⃣ [ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ɢᴇᴍɪɴɪ ᴋᴇʏ](https://aistudio.google.com/app/apikey)\n"
+    "𝟸️⃣ [ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ɢʀᴏǫ ᴋᴇʏ](https://console.groq.com/keys)\n\n"
+    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏs ᴜsɪɴɢ /set_gemini ᴏʀ /set_groq."
+)
+
+SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
+    [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_translator")]
+])
+
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("ɢᴇᴍɪɴɪ ᴘʀᴏ 💎", callback_data="trans_gemini_pro"),
@@ -34,7 +48,7 @@ TRANSLATE_BUTTONS = InlineKeyboardMarkup([
         InlineKeyboardButton("ᴍɪxᴛʀᴀʟ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
     ],
     [
-        InlineKeyboardButton("❌ ᴄʟᴏsᴇ / ᴄᴀɴᴄᴇʟ", callback_data="close_translator")
+        InlineKeyboardButton("ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ? ❓", callback_data="how_to_translate")
     ]
 ])
 
@@ -141,6 +155,7 @@ async def translate_groq(chunk_text, api_key, model_name):
 
 @Client.on_message(filters.command("translate") & filters.private)
 async def translate_cmd_handler(bot: Client, message: Message):
+    user_id = message.from_user.id
     if not message.reply_to_message:
         await message.reply_text("❌ Please reply to a .ass or .srt file with /translate")
         return
@@ -150,12 +165,35 @@ async def translate_cmd_handler(bot: Client, message: Message):
         await message.reply_text("❌ Please reply to a valid .ass or .srt file.")
         return
 
-    await message.reply_photo(
+    # Check for API Keys
+    gemini_key = await db.get_gemini_api_key(user_id)
+    groq_key = await db.get_groq_api_key(user_id)
+
+    if not gemini_key and not groq_key:
+        await message.reply_photo(
+            photo=TRANSLATE_PIC,
+            caption=SETUP_GUIDE_TEXT,
+            reply_markup=SETUP_GUIDE_BUTTONS,
+            has_spoiler=True
+        )
+        return
+
+    sent_msg = await message.reply_photo(
         photo=TRANSLATE_PIC,
         caption=TRANSLATE_TEXT,
         reply_markup=TRANSLATE_BUTTONS,
         has_spoiler=True
     )
+
+    # Store file metadata indexed by a unique chat_message key to prevent collisions
+    unique_key = f"{replied.chat.id}_{sent_msg.id}"
+    translation_data[unique_key] = {
+        'file_id': replied.document.file_id,
+        'file_name': replied.document.file_name,
+        'chat_id': replied.chat.id,
+        'message_id': replied.id,
+        'user_id': user_id
+    }
 
 @Client.on_message(filters.command("set_gemini") & filters.private)
 async def set_gemini_handler(bot: Client, message: Message):
@@ -196,25 +234,45 @@ async def process_translation(bot, cb, model_type, model_name):
         await cb.answer(f"❌ {model_type.capitalize()} API Key Missing!", show_alert=True)
         return
 
-    # Check if there's a replied message with a file
-    # cb.message is the bot's photo message.
-    # cb.message.reply_to_message is the user's /translate command.
-    # cb.message.reply_to_message.reply_to_message is the original subtitle file.
-    cmd_msg = cb.message.reply_to_message
-    if not cmd_msg or not cmd_msg.reply_to_message:
-        await cb.answer("❌ Original file not found. Please try /translate again.", show_alert=True)
-        return
+    # 1. Try to get file info from temporary storage (Fixes "File Not Found")
+    unique_key = f"{cb.message.chat.id}_{cb.message.id}"
+    file_data = translation_data.get(unique_key)
+    replied = None
 
-    replied = cmd_msg.reply_to_message
-    if not (replied.document and replied.document.file_name and replied.document.file_name.lower().endswith((".ass", ".srt"))):
-        await cb.answer("❌ Please reply to a valid .ass or .srt file.", show_alert=True)
-        return
+    if file_data:
+        file_id = file_data['file_id']
+        file_name = file_data['file_name']
+        try:
+            replied = await bot.get_messages(file_data['chat_id'], file_data['message_id'])
+        except Exception as e:
+            LOGGER.error(f"Error fetching message from translation_data: {e}")
+            replied = None
+    else:
+        # 2. Fallback to reply-chain logic
+        cmd_msg = cb.message.reply_to_message
+        if cmd_msg and cmd_msg.reply_to_message:
+            replied = cmd_msg.reply_to_message
+            if replied.document and replied.document.file_name and replied.document.file_name.lower().endswith((".ass", ".srt")):
+                file_id = replied.document.file_id
+                file_name = replied.document.file_name
+            else:
+                await cb.answer("❌ Please reply to a valid .ass or .srt file.", show_alert=True)
+                return
+        else:
+            await cb.answer("❌ Original file not found. Please try /translate again.", show_alert=True)
+            return
 
     await cb.message.delete()
-    status_msg = await bot.send_message(user_id, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭𝐚𝐫ᴛɪ𝐧𝐠 ᴛ𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐨𝐧...")
+    status_msg = await bot.send_message(user_id, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭ᴀ𝐫ᴛɪ𝐧𝐠 ᴛ𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐨𝐧...")
 
-    file_name = replied.document.file_name
-    file_path = await replied.download(file_name=os.path.join(download_dir, file_name))
+    file_path = await bot.download_media(
+        message=file_id,
+        file_name=os.path.join(download_dir, file_name)
+    )
+
+    # Clean up storage
+    if unique_key in translation_data:
+        del translation_data[unique_key]
 
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -261,7 +319,9 @@ async def process_translation(bot, cb, model_type, model_name):
             f.write(translated_content)
 
         caption = f"✅ Translated by AI (Hinglish)\nFile: <code>{output_filename}</code>"
-        await upload_doc(replied, status_msg, 0, output_filename, output_path, caption=caption)
+        # If replied is still None (fallback failed), use cb.message as a last resort to send the file
+        target_msg = replied if replied else cb.message
+        await upload_doc(target_msg, status_msg, 0, output_filename, output_path, caption=caption)
     except Exception as e:
         LOGGER.error(f"Translation Error: {e}")
         await status_msg.edit(f"❌ Error: {e}")
