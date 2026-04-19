@@ -1,4 +1,3 @@
-
 import os
 import asyncio
 import re
@@ -22,9 +21,10 @@ gemini_client = glossar.GenerativeServiceClient(
     credentials=AnonymousCredentials()
 )
 
+# STABLE API MODEL NAME
 MODEL_NAME = "models/gemini-1.5-flash"
 
-# Safety settings for translation
+# Correct Safety settings for stable v1
 SAFETY_SETTINGS = [
     glossar.SafetySetting(
         category=glossar.HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -44,7 +44,8 @@ SAFETY_SETTINGS = [
     ),
 ]
 
-SYSTEM_INSTRUCTION = "You are a professional Anime/Manhwa translator. Translate the following subtitle lines into natural Hinglish. Keep the timing tags (e.g., 0:00:00.00) exactly as they are. Do not add any explanations, only return the translated file content."
+# Strict Prompt for Hinglish
+SYSTEM_PROMPT = "You are an expert anime subtitle translator. Translate the provided subtitle content into natural, conversational Hinglish (Hindi + English). Strictly keep all timing codes, Dialogue prefixes, and metadata intact. Only replace the actual Japanese/English text with Hinglish. Output only the translated content."
 
 def parse_srt(content):
     """Simple SRT parser that returns list of blocks."""
@@ -87,36 +88,46 @@ def parse_ass(content):
     return header, events
 
 async def translate_chunk(chunk_text):
-    """Translates a chunk of text using Gemini V1 AI with retry logic."""
+    """Translates a chunk using Gemini V1 with proper formatting."""
     if not chunk_text.strip():
         return chunk_text
-
-    # Prepare request
-    full_prompt = f"{SYSTEM_INSTRUCTION}\n\n{chunk_text}"
+    # Formatting the request for v1 stable
     request = glossar.GenerateContentRequest(
         model=MODEL_NAME,
-        contents=[glossar.Content(parts=[glossar.Part(text=full_prompt)])],
+        contents=[
+            glossar.Content(
+                role="user",
+                parts=[glossar.Part(text=f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}")]
+            )
+        ],
         safety_settings=SAFETY_SETTINGS
     )
-
     for attempt in range(2):
         try:
+            # Running the blocking call in a thread
             response = await asyncio.to_thread(
                 gemini_client.generate_content,
                 request=request,
                 metadata=[('x-goog-api-key', Config.GEMINI_API_KEY)]
             )
             if response.candidates and response.candidates[0].content.parts:
-                return response.candidates[0].content.parts[0].text.strip()
+                translated_text = response.candidates[0].content.parts[0].text.strip()
+                # Clean up any AI-added markdown like ```ass or ```
+                translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
+                return translated_text
             else:
-                return "❌ Gemini Error: No content returned"
+                return "❌ Gemini Error: No response candidates found."
         except Exception as e:
-            error_msg = f'❌ Gemini Error: {str(e)}'
-            LOGGER.error(error_msg)
-            if attempt == 0:
-                await asyncio.sleep(2)
+            error_str = str(e)
+            if "404" in error_str:
+                # Emergency fallback: remove 'models/' prefix if 404 occurs
+                request.model = "gemini-1.5-flash"
                 continue
-            return error_msg
+            LOGGER.error(f"Gemini API Attempt {attempt+1} Error: {error_str}")
+            if attempt == 0:
+                await asyncio.sleep(3)
+                continue
+            return f"❌ Gemini Error: {error_str}"
 
 @Client.on_message(filters.command("translate") & filters.private)
 async def translate_cmd_handler(bot: Client, message: Message):
