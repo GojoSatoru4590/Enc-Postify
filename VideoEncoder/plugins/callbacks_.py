@@ -536,6 +536,12 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif cb.data == "close_translator":
             await cb.message.delete()
 
+        elif cb.data == "how_to_translate":
+            await cb.answer(
+                "Send file -> Type /translate -> Pick Model -> Enjoy Hinglish Subtitles!",
+                show_alert=True
+            )
+
         elif cb.data == "help_callback":
             help_text = "𝖧𝖤𝖫𝖯 𝖬𝖤𝖭𝖴\n" \
                         "● /sthumb : ʀᴇᴘʟʏ ᴛᴏ ᴘʜᴏᴛᴏ ᴛᴏ sᴇᴛ ᴄᴏᴠᴇʀ.\n" \
