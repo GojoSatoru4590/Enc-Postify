@@ -2,22 +2,12 @@ import os
 import asyncio
 import re
 import httpx
+from p2d_deepseek import DeepSeekClient
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
-
-# 1. Setup the low-level client for Gemini v1
-from google.ai import generativelanguage_v1 as glossar
-from google.api_core import client_options
-from google.auth.credentials import AnonymousCredentials
-
-client_opts = client_options.ClientOptions(api_endpoint="generativelanguage.googleapis.com")
-gemini_client = glossar.GenerativeServiceClient(
-    client_options=client_opts,
-    credentials=AnonymousCredentials()
-)
 
 SYSTEM_PROMPT = "Strictly translate English text into natural Hinglish (Hindi + English). Rule: Do not change any tags, timing, or symbols. Maintain the original line-by-line structure. Only return the translated content without any explanations."
 
@@ -29,9 +19,9 @@ translation_data = {}
 
 SETUP_GUIDE_TEXT = (
     "✨ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴜᴘ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\n"
-    "𝟷️⃣ [ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ɢᴇᴍɪɴɪ ᴋᴇʏ](https://aistudio.google.com/app/apikey)\n"
-    "𝟸️⃣ [ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ɢʀᴏǫ ᴋᴇʏ](https://console.groq.com/keys)\n\n"
-    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏs ᴜsɪɴɢ /set_gemini ᴏʀ /set_groq."
+    "🚀 ᴅᴇᴇᴘsᴇᴇᴋ ɪs ғʀᴇᴇ ᴀɴᴅ ʀᴇǫᴜɪʀᴇs ɴᴏ ᴋᴇʏ!\n\n"
+    "𝟷️⃣ [ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ɢʀᴏǫ ᴋᴇʏ](https://console.groq.com/keys)\n"
+    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏ ᴜsɪɴɢ /set_groq ɪғ ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ᴜsᴇ ɢʀᴏǫ."
 )
 
 SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
@@ -40,11 +30,7 @@ SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
 
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
     [
-        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟷.𝟻 ᴘʀᴏ 💎", callback_data="trans_gemini_15_pro"),
-        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟷.𝟻 ғʟᴀsʜ ⚡", callback_data="trans_gemini_15_flash")
-    ],
-    [
-        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟸.𝟶 ғʟᴀsʜ 🌟", callback_data="trans_gemini_20_flash")
+        InlineKeyboardButton("ᴅᴇᴇᴘsᴇᴇᴋ ᴇxᴘᴇʀᴛ 🧠", callback_data="trans_deepseek_free")
     ],
     [
         InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
@@ -71,6 +57,29 @@ def parse_srt(content):
             parsed.append({'raw': block})
     return parsed
 
+async def translate_deepseek(chunk_text):
+    if not chunk_text.strip():
+        return chunk_text
+
+    try:
+        client = DeepSeekClient()
+        prompt = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
+
+        # Enable thinking and use expert model as requested
+        response = await client.chat(
+            prompt=prompt,
+            thinking=True,
+            model="expert"
+        )
+
+        if response:
+            translated_text = response.strip()
+            translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
+            return translated_text
+        return "❌ DeepSeek Error: Empty response."
+    except Exception as e:
+        return f"❌ DeepSeek Error: {str(e)}"
+
 def parse_ass(content):
     lines = content.splitlines()
     header = []
@@ -94,71 +103,6 @@ def parse_ass(content):
                 events.append({'raw': line})
     return header, events
 
-async def translate_gemini(chunk_text, api_key, model_name):
-    if not chunk_text.strip():
-        return chunk_text
-
-    # Exact Model Mapping
-    if "2.0-flash" in model_name:
-        full_model_name = "gemini-2.0-flash-exp"
-    elif "1.5-flash" in model_name:
-        full_model_name = "gemini-1.5-flash"
-    else:
-        full_model_name = "gemini-1.5-pro"
-
-    prompt_text = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
-
-    # 1. SDK Method (Direct attempt)
-    try:
-        request = glossar.GenerateContentRequest(
-            model=full_model_name,
-            contents=[glossar.Content(parts=[glossar.Part(text=prompt_text)])]
-        )
-        response = await asyncio.to_thread(
-            gemini_client.generate_content,
-            request=request,
-            metadata=[('x-goog-api-key', api_key)]
-        )
-        if response.candidates and response.candidates[0].content.parts:
-            translated_text = response.candidates[0].content.parts[0].text.strip()
-            translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
-            return translated_text
-    except Exception as e:
-        LOGGER.warning(f"Gemini SDK failed for {full_model_name}, trying Direct Request: {e}")
-
-    # 2. Direct Request Fallback (Bypassing SDK)
-    # Using v1 endpoint as requested
-    url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt_text}]
-        }]
-    }
-
-    async with httpx.AsyncClient() as client:
-        for attempt in range(2):
-            try:
-                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    if 'candidates' in data and data['candidates'][0]['content']['parts']:
-                        translated_text = data['candidates'][0]['content']['parts'][0]['text'].strip()
-                        translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
-                        return translated_text
-                    return f"❌ Gemini Direct Error: Unexpected response structure."
-                elif response.status_code == 404:
-                    return "❌ Gemini Error: 404 - Model not found or API not enabled. Please ensure 'Generative Language API' is toggled ON in the Google Cloud Console."
-                else:
-                    if attempt == 0:
-                        await asyncio.sleep(2)
-                        continue
-                    return f"❌ Gemini Direct Error: {response.status_code} - {response.text}"
-            except Exception as e:
-                if attempt == 0:
-                    await asyncio.sleep(2)
-                    continue
-                return f"❌ Gemini Direct Error: {str(e)}"
 
 async def translate_groq(chunk_text, api_key, model_name):
     if not chunk_text.strip():
@@ -207,18 +151,8 @@ async def translate_cmd_handler(bot: Client, message: Message):
         await message.reply_text("❌ Please reply to a valid .ass or .srt file.")
         return
 
-    # Check for API Keys
-    gemini_key = await db.get_gemini_api_key(user_id)
-    groq_key = await db.get_groq_api_key(user_id)
-
-    if not gemini_key and not groq_key:
-        await message.reply_photo(
-            photo=TRANSLATE_PIC,
-            caption=SETUP_GUIDE_TEXT,
-            reply_markup=SETUP_GUIDE_BUTTONS,
-            has_spoiler=True
-        )
-        return
+    # Check for API Keys - only if we want to enforce it, but DeepSeek is free.
+    # Let's show the translate options directly.
 
     sent_msg = await message.reply_photo(
         photo=TRANSLATE_PIC,
@@ -237,15 +171,6 @@ async def translate_cmd_handler(bot: Client, message: Message):
         'user_id': user_id
     }
 
-@Client.on_message(filters.command("set_gemini") & filters.private)
-async def set_gemini_handler(bot: Client, message: Message):
-    if len(message.command) < 2:
-        await message.reply_text("❌ Usage: /set_gemini YOUR_KEY_HERE")
-        return
-    api_key = message.command[1]
-    await db.set_gemini_api_key(message.from_user.id, api_key)
-    await message.reply_text("✅ Gemini API Key saved successfully!")
-
 @Client.on_message(filters.command("set_groq") & filters.private)
 async def set_groq_handler(bot: Client, message: Message):
     if len(message.command) < 2:
@@ -257,23 +182,24 @@ async def set_groq_handler(bot: Client, message: Message):
 
 @Client.on_message(filters.command("clear_api") & filters.private)
 async def clear_api_handler(bot: Client, message: Message):
-    await db.set_gemini_api_key(message.from_user.id, None)
     await db.set_groq_api_key(message.from_user.id, None)
-    await message.reply_text("✅ All API Keys cleared successfully!")
+    await message.reply_text("✅ API Key cleared successfully!")
 
 async def process_translation(bot, cb, model_type, model_name):
     # This will be called from callbacks_.py
     user_id = cb.from_user.id
 
-    if model_type == "gemini":
-        api_key = await db.get_gemini_api_key(user_id)
-        translate_func = translate_gemini
-    else:
+    if model_type == "groq":
         api_key = await db.get_groq_api_key(user_id)
         translate_func = translate_groq
-
-    if not api_key:
-        await cb.answer(f"❌ {model_type.capitalize()} API Key Missing!", show_alert=True)
+        if not api_key:
+            await cb.answer(f"❌ {model_type.capitalize()} API Key Missing!", show_alert=True)
+            return
+    elif model_type == "deepseek":
+        api_key = None
+        translate_func = lambda chunk, k, m: translate_deepseek(chunk)
+    else:
+        await cb.answer("❌ Invalid model type!", show_alert=True)
         return
 
     # 1. Try to get file info from temporary storage (Fixes "File Not Found")
@@ -325,53 +251,47 @@ async def process_translation(bot, cb, model_type, model_name):
 
         if is_srt:
             blocks = re.split(r'\n\s*\n', content.strip())
-            total_chunks = (len(blocks) + 9) // 10
+            # Micro-chunks: 5 lines/blocks to stay within 300-400 tokens
+            chunk_size = 5
+            total_chunks = (len(blocks) + chunk_size - 1) // chunk_size
             translated_blocks = []
-            for i in range(0, len(blocks), 10):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//10)+1}/{total_chunks}...")
-                chunk = "\n\n".join(blocks[i : i + 10])
+            for i in range(0, len(blocks), chunk_size):
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//chunk_size)+1}/{total_chunks}...")
+                chunk = "\n\n".join(blocks[i : i + chunk_size])
 
                 try:
                     res = await translate_func(chunk, api_key, model_name)
                 except Exception as e:
                     res = f"❌ Error: {e}"
 
-                if res.startswith("❌") and model_type == "gemini":
-                    groq_key = await db.get_groq_api_key(user_id)
-                    if groq_key:
-                        LOGGER.info(f"Gemini failed, switching to Groq for user {user_id}")
-                        await status_msg.edit("⚠️ Gemini failed. Switching to Groq Bodyguard Engine...")
-                        model_type = "groq"
-                        model_name = "llama-3.3-70b-versatile"
-                        api_key = groq_key
-                        translate_func = translate_groq
-                        res = await translate_func(chunk, api_key, model_name)
-                        if res.startswith("❌"):
-                            await status_msg.edit(res)
-                            return
-                    else:
-                        await status_msg.edit(res)
-                        return
-                elif res.startswith("❌"):
+                if res.startswith("❌"):
                     await status_msg.edit(res)
                     return
 
                 translated_blocks.append(res)
-                if model_type == "groq" and (i + 10) < len(blocks):
-                    await asyncio.sleep(2)
+                if model_type == "groq":
+                    await asyncio.sleep(3)
+                else:
+                    await asyncio.sleep(1) # Small breather for deepseek free
             translated_content = "\n\n".join(translated_blocks)
         else:
             header, events = parse_ass(content)
 
-            # Subtitle Rendering Fixes: Force PlayResY: 1080 and Arial/48 Style
+            # Subtitle Rendering Fixes: Force PlayResX: 1920, PlayResY: 1080 and Fontsize: 60
             new_header = []
             script_info_found = False
+            playresx_found = False
             playresy_found = False
 
             for line in header:
                 if line.strip().lower().startswith('[script info]'):
                     script_info_found = True
                     new_header.append(line)
+                    continue
+
+                if line.strip().startswith('PlayResX:'):
+                    new_header.append('PlayResX: 1920')
+                    playresx_found = True
                     continue
 
                 if line.strip().startswith('PlayResY:'):
@@ -390,7 +310,7 @@ async def process_translation(bot, cb, model_type, model_name):
                         if len(remaining) >= 2:
                             # remaining[0] is ' Fontsize'
                             # remaining[1] is the rest
-                            new_style = f"{parts[0]},Arial,48,{remaining[1]}"
+                            new_style = f"{parts[0]},Arial,60,{remaining[1]}"
                             new_header.append(new_style)
                         else:
                             new_header.append(line)
@@ -400,24 +320,29 @@ async def process_translation(bot, cb, model_type, model_name):
 
                 new_header.append(line)
 
-            if script_info_found and not playresy_found:
-                # Insert PlayResY after [Script Info]
+            if script_info_found:
+                # Insert missing PlayRes after [Script Info]
                 idx = -1
                 for i, line in enumerate(new_header):
                     if line.strip().lower().startswith('[script info]'):
                         idx = i
                         break
                 if idx != -1:
-                    new_header.insert(idx + 1, 'PlayResY: 1080')
+                    if not playresy_found:
+                        new_header.insert(idx + 1, 'PlayResY: 1080')
+                    if not playresx_found:
+                        new_header.insert(idx + 1, 'PlayResX: 1920')
 
             header = new_header
 
-            total_chunks = (len(events) + 9) // 10
+            # Micro-chunks: 5 lines/events to stay within 300-400 tokens
+            chunk_size = 5
+            total_chunks = (len(events) + chunk_size - 1) // chunk_size
             final_events = []
-            for i in range(0, len(events), 10):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//10)+1}/{total_chunks}...")
+            for i in range(0, len(events), chunk_size):
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//chunk_size)+1}/{total_chunks}...")
                 chunk_lines = []
-                for item in events[i : i + 10]:
+                for item in events[i : i + chunk_size]:
                     if 'text' in item:
                         chunk_lines.append(",".join(item['prefix']) + "," + item['text'])
                     else:
@@ -429,34 +354,20 @@ async def process_translation(bot, cb, model_type, model_name):
                 except Exception as e:
                     res = f"❌ Error: {e}"
 
-                if res.startswith("❌") and model_type == "gemini":
-                    groq_key = await db.get_groq_api_key(user_id)
-                    if groq_key:
-                        LOGGER.info(f"Gemini failed, switching to Groq for user {user_id}")
-                        await status_msg.edit("⚠️ Gemini failed. Switching to Groq Bodyguard Engine...")
-                        model_type = "groq"
-                        model_name = "llama-3.3-70b-versatile"
-                        api_key = groq_key
-                        translate_func = translate_groq
-                        res = await translate_func(chunk_text, api_key, model_name)
-                        if res.startswith("❌"):
-                            await status_msg.edit(res)
-                            return
-                    else:
-                        await status_msg.edit(res)
-                        return
-                elif res.startswith("❌"):
+                if res.startswith("❌"):
                     await status_msg.edit(res)
                     return
 
                 final_events.append(res)
-                if model_type == "groq" and (i + 10) < len(events):
-                    await asyncio.sleep(2)
+                if model_type == "groq":
+                    await asyncio.sleep(3)
+                else:
+                    await asyncio.sleep(1) # Small breather for deepseek free
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
 
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
         output_path = os.path.join(download_dir, output_filename)
-        with open(output_path, "w", encoding="utf-8") as f:
+        with open(output_path, "w", encoding="utf-8-sig") as f:
             f.write(translated_content)
 
         caption = f"✅ Translated by AI (Hinglish)\nFile: <code>{output_filename}</code>"

@@ -35,10 +35,11 @@ async def sthumb_command(client: Client, message: Message):
             
             buttons = [
                 [
-                    InlineKeyboardButton("ʜᴇʟᴘ", callback_data="help_callback")
+                    InlineKeyboardButton("⚙️ sᴇᴛᴛɪɴɢs", callback_data="OpenSettings"),
+                    InlineKeyboardButton("❓ ʜᴇʟᴘ", callback_data="help_callback")
                 ],
                 [
-                    InlineKeyboardButton("ᴄʟᴏsᴇ", callback_data="closeMeh")
+                    InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="closeMeh")
                 ]
             ]
             

@@ -57,15 +57,15 @@ async def help_message(app, message):
 Send your .ass or subtitle file directly to the bot.
 
 ➼ <b>Step 2: Select the Engine</b>
-Choose between Gemini (Best Quality) or Groq/Llama (Lightning Fast).
+Choose between DeepSeek-Free (Thinking Expert) or Groq (Lightning Fast).
 
 ➼ <b>Step 3: Wait for Processing</b>
-The bot will split your file into chunks to ensure high-quality Hinglish translation without hitting limits.
+The bot will split your file into micro-chunks to ensure high-quality Hinglish translation without hitting any limits.
 
 ➼ <b>Step 4: Download & Enjoy</b>
-Once done, you'll receive the translated file. Just add it to your video player!
+Once done, you'll receive the translated file with UTF-8-SIG encoding to prevent any character corruption.
 
-<b>Note:</b> If one engine fails, the 'Bodyguard' system automatically switches to the fallback engine to ensure your file is never rejected."""
+<b>Note:</b> DeepSeek-Free is now fully integrated with Thinking Mode for superior Hinglish subbing!"""
     await message.reply_photo(photo=START_PIC, caption=msg, reply_markup=start_but, has_spoiler=True)
 
 
