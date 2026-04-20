@@ -47,7 +47,6 @@ class Database:
             metadata_subtitle="By: @Anime_Fury",
             metadata_video="By: @Anime_Fury",
             user_font='Arial',
-            gemini_api_key=None,
             groq_api_key=None
         )
 
@@ -351,13 +350,6 @@ class Database:
     async def get_user_font(self, id):
         user = await self._get_user(id)
         return user.get('user_font', 'Arial')
-
-    async def set_gemini_api_key(self, id, key):
-        await self.col.update_one({'id': id}, {'$set': {'gemini_api_key': key}}, upsert=True)
-
-    async def get_gemini_api_key(self, id):
-        user = await self._get_user(id)
-        return user.get('gemini_api_key', None)
 
     async def set_groq_api_key(self, id, key):
         await self.col.update_one({'id': id}, {'$set': {'groq_api_key': key}}, upsert=True)
