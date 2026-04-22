@@ -395,7 +395,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
     # Hard Subs
     if h:
-        # Escape path for FFmpeg subtitles filter
+        # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
+        subtitles_path = os.path.abspath(subtitles_path)
         escaped_sub_path = subtitles_path.replace(":", "\\:")
         # Ensure selected_font is used and fallback to system font if it fails (handled by FFmpeg usually, but we set it)
         vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size}'")
@@ -652,7 +653,8 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         else:
             font_size = 40
 
-    # Escape path for FFmpeg subtitles filter
+    # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
+    subtitles_path = os.path.abspath(subtitles_path)
     escaped_sub_path = subtitles_path.replace(":", "\\:")
     vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size}'")
 
@@ -985,7 +987,7 @@ async def handle_progress(proc, msg, message, filepath):
 
         now = time.time()
         if now - last_update_time >= 3:
-            times = re.findall(r"time=(\d{2}:\d{2}:\d{2}.\d{2})", stderr_buffer)
+            times = re.findall(r"time=\s*(\d{2}:\d{2}:\d{2}(?:\.\d+)?)", stderr_buffer)
             sizes = re.findall(r"size=\s*(\d+)\s*(\w+)", stderr_buffer)
 
             if times and sizes:
@@ -1005,13 +1007,13 @@ async def handle_progress(proc, msg, message, filepath):
                 else:
                     current_size_mb = current_size_val / (1024*1024)
 
-                percentage = min(100, (current_seconds / total_time) * 100)
-                est_total_size_mb = (current_size_mb / percentage * 100) if percentage > 0 else 0
+                percentage = min(100, (current_seconds * 100 / total_time)) if total_time > 0 else 0
+                est_total_size_mb = (current_size_mb / (percentage / 100)) if percentage > 0 else 0
 
                 elapsed = now - COMPRESSION_START_TIME
                 speed_mb_s = current_size_mb / elapsed if elapsed > 0 else 0
 
-                bar_count = round(percentage / 10)
+                bar_count = int(percentage / 10)
                 bar = '█' * bar_count + '░' * (10 - bar_count)
 
                 status_text = (

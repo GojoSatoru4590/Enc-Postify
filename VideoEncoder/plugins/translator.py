@@ -28,11 +28,11 @@ SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
 
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
     [
-        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
-        InlineKeyboardButton("ɢᴇᴍᴍᴀ 𝟸 (ɢʀᴏǫ) 💎", callback_data="trans_gemma2_groq")
+        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 𝟽𝟶ʙ 🚀", callback_data="trans_llama33_groq"),
+        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹 𝟽𝟶ʙ 💎", callback_data="trans_llama3_70b_groq")
     ],
     [
-        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟸 𝟷𝟷ʙ (ɢʀᴏǫ) ⚡", callback_data="trans_llama32_groq"),
+        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹 𝟾ʙ ⚡", callback_data="trans_llama3_8b_groq"),
         InlineKeyboardButton("ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ? ❓", callback_data="how_to_translate")
     ]
 ])
@@ -76,17 +76,17 @@ def parse_ass(content):
     return header, events
 
 
-async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-specdec"):
+async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-versatile"):
     if not chunk_text.strip(): return chunk_text
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {"model": model_name, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": chunk_text}], "temperature": 0.2}
 
-    # Delays per model
+    # Delays per model (STABLE)
     delays = {
-        "llama-3.3-70b-specdec": 4,
-        "llama-3.2-11b-vision-preview": 3,
-        "gemma2-9b-it": 5
+        "llama-3.3-70b-versatile": 5,
+        "llama3-70b-8192": 4,
+        "llama3-8b-8192": 3
     }
     delay = delays.get(model_name, 3)
 
@@ -100,7 +100,7 @@ async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-specdec"
                     await asyncio.sleep(delay); return translated_text
                 elif response.status_code == 429:
                     LOGGER.info(f"Rate limit hit for {model_name}. Waiting 10s and switching..."); await asyncio.sleep(10)
-                    fallback_models = ["llama-3.3-70b-specdec", "llama-3.2-11b-vision-preview", "gemma2-9b-it"]
+                    fallback_models = ["llama-3.3-70b-versatile", "llama3-70b-8192", "llama3-8b-8192"]
                     for fallback in fallback_models:
                         if fallback != model_name: return await translate_groq(chunk_text, api_key, fallback)
                     return f"❌ Groq Error: 429 Rate Limit"
