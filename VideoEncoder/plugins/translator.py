@@ -34,11 +34,12 @@ TRANSLATE_BUTTONS = InlineKeyboardMarkup([
 ])
 
 def parse_srt(content):
+    content = content.replace('\r\n', '\n')
     blocks = re.split(r'\n\s*\n', content.strip())
     parsed = []
     for block in blocks:
         lines = block.split('\n')
-        if len(lines) >= 3:
+        if len(lines) >= 3 and (lines[0].isdigit() or '-->' in lines[1]):
             parsed.append({
                 'index': lines[0],
                 'timestamp': lines[1],
@@ -49,7 +50,7 @@ def parse_srt(content):
     return parsed
 
 def parse_ass(content):
-    lines = content.splitlines()
+    lines = content.replace('\r\n', '\n').split('\n')
     header = []
     events = []
     in_events = False
@@ -208,42 +209,49 @@ async def process_translation(bot, cb, model_type, model_name):
             content = f.read()
 
         is_srt = file_path.lower().endswith(".srt")
-
-        # High-Stability Groq Chunking: ~300 tokens (approx 1000 characters)
         MAX_CHUNK_CHARS = 1000
         translated_content = ""
 
         if is_srt:
-            blocks = re.split(r"\n\s*\n", content.strip())
-            translated_blocks = []
-            chunk_queue = []
-            temp_chunk = []
-            temp_size = 0
-            for block in blocks:
-                if temp_size + len(block) > MAX_CHUNK_CHARS and temp_chunk:
-                    chunk_queue.append("\n\n".join(temp_chunk)); temp_chunk = [block]; temp_size = len(block)
-                else: temp_chunk.append(block); temp_size += len(block)
-            if temp_chunk: chunk_queue.append("\n\n".join(temp_chunk))
+            parsed_blocks = parse_srt(content)
+            to_translate = []
+            for b in parsed_blocks:
+                if 'text' in b:
+                    to_translate.append(b['text'].replace('\n', '\\N'))
 
-            current_key_idx = 0
-            idx = 0
+            chunk_queue = []; temp_chunk = []; temp_size = 0
+            for text in to_translate:
+                if temp_size + len(text) > MAX_CHUNK_CHARS and temp_chunk:
+                    chunk_queue.append("\n".join(temp_chunk)); temp_chunk = [text]; temp_size = len(text)
+                else: temp_chunk.append(text); temp_size += len(text)
+            if temp_chunk: chunk_queue.append("\n".join(temp_chunk))
+
+            translated_texts = []
+            current_key_idx = 0; idx = 0
             while idx < len(chunk_queue):
-                chunk = chunk_queue[idx]
-                api_key = api_pool[current_key_idx]
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)} (API Key {current_key_idx + 1})...")
+                chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
                 if res == "429":
                     current_key_idx += 1
                     if current_key_idx >= len(api_pool):
-                        LOGGER.info("All keys in pool hit rate limit. Waiting 60s.")
-                        await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60)
-                        current_key_idx = 0
-                    else:
-                        LOGGER.info(f"Rate limit hit for key {current_key_idx}. Switching to key {current_key_idx + 1}.")
+                        await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
                     continue
                 if res.startswith("❌"): await status_msg.edit(res); return
-                translated_blocks.append(res); idx += 1
-            translated_content = "\n\n".join(translated_blocks)
+                lines = res.split('\n')
+                translated_texts.extend(lines); idx += 1
+
+            final_srt = []
+            trans_idx = 0
+            for b in parsed_blocks:
+                if 'text' in b:
+                    if trans_idx < len(translated_texts):
+                        translated_text = translated_texts[trans_idx].replace('\\N', '\n').replace('\\n', '\n')
+                        final_srt.append(f"{b['index']}\n{b['timestamp']}\n{translated_text}")
+                        trans_idx += 1
+                    else: final_srt.append(f"{b['index']}\n{b['timestamp']}\n{b['text']}")
+                else: final_srt.append(b['raw'])
+            translated_content = "\n\n".join(final_srt)
         else:
             header, events = parse_ass(content); new_header = []
             script_info_found = False; playresx_found = False; playresy_found = False; res_y = 1080
@@ -260,45 +268,59 @@ async def process_translation(bot, cb, model_type, model_name):
                 if not playresy_found: new_header.insert(1, 'PlayResY: 1080'); res_y = 1080
                 if not playresx_found: new_header.insert(1, 'PlayResX: 1920')
 
-            # Dynamic Fontsize Calculation
-            if res_y >= 1080: f_size = 60
-            elif res_y >= 720: f_size = 40
-            else: f_size = 25
+            # Dynamic Fontsize Calculation: 1080p: 65, 720p: 50, 480p: 30
+            if res_y >= 1080: f_size = 65
+            elif res_y >= 720: f_size = 50
+            else: f_size = 30
 
             final_header = []
             for line_h in new_header:
                 if line_h.strip().startswith('Style:'):
                     parts = line_h.split(',')
-                    if len(parts) > 2: parts[2] = str(f_size); final_header.append(",".join(parts))
-                    else: final_header.append(line_h)
-                else: final_header.append(line_h)
+                    if len(parts) > 2:
+                        parts[2] = str(f_size)
+                        final_header.append(",".join(parts))
+                    else:
+                        final_header.append(line_h)
+                else:
+                    final_header.append(line_h)
             header = final_header
-            chunk_queue = []; temp_lines = []; temp_size = 0
+
+            to_translate = []
             for item in events:
-                line_text = ",".join(item['prefix']) + "," + item['text'] if 'text' in item else item['raw']
-                if temp_size + len(line_text) > MAX_CHUNK_CHARS and temp_lines:
-                    chunk_queue.append("\n".join(temp_lines)); temp_lines = [line_text]; temp_size = len(line_text)
-                else: temp_lines.append(line_text); temp_size += len(line_text)
-            if temp_lines: chunk_queue.append("\n".join(temp_lines))
-            final_events = []
-            current_key_idx = 0
-            idx = 0
+                if 'text' in item: to_translate.append(item['text'])
+
+            chunk_queue = []; temp_chunk = []; temp_size = 0
+            for text in to_translate:
+                if temp_size + len(text) > MAX_CHUNK_CHARS and temp_chunk:
+                    chunk_queue.append("\n".join(temp_chunk)); temp_chunk = [text]; temp_size = len(text)
+                else: temp_chunk.append(text); temp_size += len(text)
+            if temp_chunk: chunk_queue.append("\n".join(temp_chunk))
+
+            translated_texts = []
+            current_key_idx = 0; idx = 0
             while idx < len(chunk_queue):
-                chunk = chunk_queue[idx]
-                api_key = api_pool[current_key_idx]
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)} (API Key {current_key_idx + 1})...")
+                chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
                 if res == "429":
                     current_key_idx += 1
                     if current_key_idx >= len(api_pool):
-                        LOGGER.info("All keys in pool hit rate limit. Waiting 60s.")
-                        await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60)
-                        current_key_idx = 0
-                    else:
-                        LOGGER.info(f"Rate limit hit for key {current_key_idx}. Switching to key {current_key_idx + 1}.")
+                        await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
                     continue
                 if res.startswith("❌"): await status_msg.edit(res); return
-                final_events.append(res); idx += 1
+                lines = res.split('\n')
+                translated_texts.extend(lines); idx += 1
+
+            final_events = []
+            trans_idx = 0
+            for item in events:
+                if 'text' in item:
+                    if trans_idx < len(translated_texts):
+                        final_events.append(",".join(item['prefix']) + "," + translated_texts[trans_idx])
+                        trans_idx += 1
+                    else: final_events.append(",".join(item['prefix']) + "," + item['text'])
+                else: final_events.append(item['raw'])
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
         output_path = os.path.join(download_dir, output_filename)

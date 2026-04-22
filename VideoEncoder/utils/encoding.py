@@ -335,33 +335,33 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
             selected_font = 'Liberation Sans'
 
     # Font Size based on resolution
-    # 480p: FontSize=25, 720p: FontSize=40, 1080p: FontSize=60
+    # 480p: FontSize=30, 720p: FontSize=50, 1080p: FontSize=65
     if quality == '480p':
-        font_size = 25
+        font_size = 30
     elif quality == '720p':
-        font_size = 40
+        font_size = 50
     elif quality == '1080p':
-        font_size = 60
+        font_size = 65
     else:
         # Check resolution setting
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 60
+            font_size = 65
         elif r_db == '720':
-            font_size = 40
+            font_size = 50
         elif r_db in ['480', '576']:
-            font_size = 25
+            font_size = 30
         elif r_db == 'OG':
             # Analyze resolution
             _, height = get_width_height(filepath)
-            if height >= 1000:
-                font_size = 60
-            elif height >= 700:
-                font_size = 40
+            if height >= 1080:
+                font_size = 65
+            elif height >= 720:
+                font_size = 50
             else:
-                font_size = 25
+                font_size = 30
         else:
-            font_size = 40
+            font_size = 50
 
     # Watermark and Resolution
     r = await db.get_resolution(message.from_user.id)
@@ -621,37 +621,37 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     if not quality:
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 60
+            font_size = 65
         elif r_db == '720':
-            font_size = 40
+            font_size = 50
         elif r_db in ['480', '576']:
-            font_size = 25
+            font_size = 30
         else:
             _, height = get_width_height(filepath)
-            if height >= 1000:
-                font_size = 60
-            elif height >= 700:
-                font_size = 40
+            if height >= 1080:
+                font_size = 65
+            elif height >= 720:
+                font_size = 50
             else:
-                font_size = 25
+                font_size = 30
     else:
         if quality == '480p':
             vf_list.append('scale=854:480')
             crf = '28'
             v_bitrate = ['-b:v', '800k']
-            font_size = 25
+            font_size = 30
         elif quality == '720p':
             vf_list.append('scale=1280:720')
             crf = '24'
             v_bitrate = ['-b:v', '1.5M']
-            font_size = 40
+            font_size = 50
         elif quality == '1080p':
             vf_list.append('scale=1920:1080')
             crf = '22'
             v_bitrate = ['-b:v', '3M']
-            font_size = 60
+            font_size = 65
         else:
-            font_size = 40
+            font_size = 50
 
     # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
     subtitles_path = os.path.abspath(subtitles_path)
