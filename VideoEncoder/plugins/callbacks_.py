@@ -523,14 +523,14 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         # Translator Callbacks
 
 
-        elif cb.data == "trans_llama3_groq":
-            await process_translation(bot, cb, "groq", "llama-3.3-70b-specdec")
+        elif cb.data == "trans_llama33_groq":
+            await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
 
-        elif cb.data == "trans_gemma2_groq":
-            await process_translation(bot, cb, "groq", "gemma2-9b-it")
+        elif cb.data == "trans_llama3_70b_groq":
+            await process_translation(bot, cb, "groq", "llama3-70b-8192")
 
-        elif cb.data == "trans_llama32_groq":
-            await process_translation(bot, cb, "groq", "llama-3.2-11b-vision-preview")
+        elif cb.data == "trans_llama3_8b_groq":
+            await process_translation(bot, cb, "groq", "llama3-8b-8192")
 
         elif cb.data == "close_translator":
             await cb.message.delete()
