@@ -81,7 +81,7 @@ async def extract_subtitle(filepath):
     path, _ = os.path.splitext(filepath)
     output = f"{path}{ext}"
 
-    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', filepath, '-map', f'0:s:{sub_index}', output]
+    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-copyts', '-i', filepath, '-map', f'0:s:{sub_index}', output]
 
     proc = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     _, stderr = await proc.communicate()
@@ -520,7 +520,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
 
     command = ['ffmpeg', '-hide_banner',
-               '-hwaccel', 'auto', '-y', '-sub_charenc', 'utf-8-sig', '-i', filepath]
+               '-hwaccel', 'auto', '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'utf-8-sig', '-i', filepath]
 
     input_count = 1
     watermark_input_index = -1
@@ -678,7 +678,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     command = [
         'ffmpeg', '-hide_banner',
-        '-hwaccel', 'auto', '-y',
+        '-hwaccel', 'auto', '-y', '-copyts', '-vsync', 'cfr',
         '-sub_charenc', 'utf-8-sig', '-i', filepath
     ]
 
@@ -702,7 +702,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0', '-map', '0:a:0'])
 
     command.extend([
-        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', crf
+        '-c:v', 'libx264', '-preset', 'faster', '-crf', crf
     ])
     command.extend(v_bitrate)
     command.extend(['-c:a', 'copy'])
@@ -775,7 +775,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
 
         command = [
             'ffmpeg', '-hide_banner',
-            '-y', '-sub_charenc', 'utf-8-sig', '-i', filepath, '-sub_charenc', 'utf-8-sig', '-i', subtitles_path
+            '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'utf-8-sig', '-i', filepath, '-sub_charenc', 'utf-8-sig', '-i', subtitles_path
         ]
 
         input_count = 2
@@ -803,7 +803,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0', '-map', '0:a:0', '-map', '1:s'])
 
         command.extend([
-            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', crf
+            '-c:v', 'libx264', '-preset', 'faster', '-crf', crf
         ])
         command.extend(v_bitrate)
         command.extend(['-c:a', 'copy', '-c:s', 'copy'])
