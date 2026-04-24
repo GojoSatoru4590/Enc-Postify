@@ -4,19 +4,16 @@ import asyncio
 from pyrogram.errors import FloodWait
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, InputMediaPhoto
 
-from typing import TYPE_CHECKING
 from .. import LOGGER
-from .database.access_db import db
-from .database.add_user import AddUserToDatabase
 
-if TYPE_CHECKING:
-    from .helper import edit_msg
 
 SETTINGS_PIC = "https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.jpg"
 
 # Settings
 async def OpenSettings(event: Message, user_id: int):
     from .helper import edit_msg
+    from .database.access_db import db
+    from .database.add_user import AddUserToDatabase
     try:
         text = "Settings of the Bot"
         buttons = [
@@ -45,6 +42,7 @@ async def OpenSettings(event: Message, user_id: int):
 # Video Settings
 async def VideoSettings(event: Message, user_id: int):
     from .helper import edit_msg
+    from .database.access_db import db
     try:
         ex = await db.get_extensions(user_id)
         if ex == 'MP4':
@@ -159,6 +157,7 @@ async def VideoSettings(event: Message, user_id: int):
 
 async def AudioSettings(event: Message, user_id: int):
     from .helper import edit_msg
+    from .database.access_db import db
     try:
 
         a = await db.get_audio(user_id)
@@ -255,6 +254,7 @@ async def AudioSettings(event: Message, user_id: int):
 
 async def ExtraSettings(event: Message, user_id: int):
     from .helper import edit_msg
+    from .database.access_db import db
     try:
         text = "Here's Your Subtitle Settings"
         buttons = [
