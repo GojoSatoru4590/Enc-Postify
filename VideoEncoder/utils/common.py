@@ -17,14 +17,14 @@ start_but = InlineKeyboardMarkup([
 ])
 
 
-async def edit_msg(msg, **kwargs):
+async def edit_msg(msg, text=None, **kwargs):
     try:
         if 'media' in kwargs:
             return await msg.edit_media(**kwargs)
         if 'caption' in kwargs:
             return await msg.edit_caption(**kwargs)
-        if 'text' in kwargs:
-            return await msg.edit_text(**kwargs)
+        if text:
+            return await msg.edit_text(text, **kwargs)
         return await msg.edit(**kwargs)
     except MessageNotModified:
         pass
