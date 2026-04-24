@@ -1,11 +1,9 @@
 
 
-from ..database.access_db import db
-from .drive.upload import Uploader
-from .telegram import upload_to_tg
-
-
 async def upload_worker(new_file, message, msg, caption=None, reply_markup=None):
+    from ..database.access_db import db
+    from .drive.upload import Uploader
+    from .telegram import upload_to_tg
     if await db.get_drive(message.from_user.id):
         link = await Uploader().upload_to_drive(new_file, message, msg)
     else:

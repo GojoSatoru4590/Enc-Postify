@@ -2,19 +2,12 @@
 import asyncio
 import os
 import shutil
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .encoding import encode, extract_subs, extract_subtitle, hard_sub, soft_code
-    from .uploads import upload_worker
-    from .uploads.telegram import upload_doc
 
 from pyrogram.errors import MessageNotModified
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from pySmartDL import SmartDL
 
 from .. import all, everyone, owner, sudo_users, download_dir, encode_dir, LOGGER
-from .database.access_db import db
 
 output = InlineKeyboardMarkup([
     [
@@ -47,6 +40,7 @@ async def edit_msg(msg, **kwargs):
 
 async def check_chat(message, chat):
     ''' Authorize User! '''
+    from .database.access_db import db
     chat_id = message.chat.id
     user_id = message.from_user.id
     get_sudo = await db.get_sudo()
@@ -107,6 +101,7 @@ async def handle_sub_extract(filepath, message, msg):
 async def handle_encode(filepath, message, msg, audio_map=None, quality=None, custom_name=None):
     from .encoding import encode, extract_subs
     from .uploads import upload_worker
+    from .database.access_db import db
     sub_path = os.path.join(encode_dir, str(msg.id) + '.ass')
     new_file = None
     try:

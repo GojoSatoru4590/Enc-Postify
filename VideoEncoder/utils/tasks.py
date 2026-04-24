@@ -14,17 +14,7 @@ from pyrogram.types import Message
 from requests.utils import unquote
 
 from .. import LOGGER, data, download_dir, video_mimetype
-from .database.access_db import db
-from .direct_link_generator import direct_link_generator
-from .display_progress import progress_for_pyrogram
-from .uploads.drive import _get_file_id
-from .uploads.drive.download import Downloader
 from ..video_utils.audio_selector import AudioSelect
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .helper import delete_downloads, get_zip_folder, handle_encode, handle_extract, handle_url, handle_sub_extract, edit_msg
-    from .encoding import get_media_streams
 
 async def on_task_complete():
     from .helper import delete_downloads
@@ -277,6 +267,9 @@ async def batch_task(message, msg):
 
 async def handle_download_url(message, msg, batch):
     from .helper import handle_url, edit_msg
+    from .uploads.drive import _get_file_id
+    from .uploads.drive.download import Downloader
+    from .direct_link_generator import direct_link_generator
     url = message.text.split(None, 1)[1].strip()
     if 'drive.google.com' in url:
         file_id = _get_file_id(url)
@@ -318,6 +311,7 @@ async def handle_download_url(message, msg, batch):
 
 async def handle_tg_down(message, msg, mode='no_reply'):
     from .helper import edit_msg, get_zip_folder, handle_extract
+    from .display_progress import progress_for_pyrogram
     c_time = time.time()
 
     # Determine what to download

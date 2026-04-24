@@ -4,10 +4,10 @@ import time
 
 from pyrogram.enums import ParseMode
 from ... import app, download_dir, log, LOGGER, ASSETS_DIR
-from ..database.access_db import db
 
 
 async def upload_to_tg(new_file, message, msg, caption=None, reply_markup=None):
+    from ..database.access_db import db
     from ..encoding import get_duration, get_width_height
     # Variables
     c_time = time.time()

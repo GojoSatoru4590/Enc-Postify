@@ -9,17 +9,12 @@ import shutil
 import shlex
 import subprocess
 import time
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .helper import edit_msg
 
 from hachoir.metadata import extractMetadata
 from hachoir.parser import createParser
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from .. import LOGGER, download_dir, encode_dir, ASSETS_DIR
-from .database.access_db import db
 
 def cleanup_temp_subs(msg_id=None):
     """Clear any previous subtitle cache or temporary .srt/.ass files.
@@ -178,6 +173,7 @@ async def extract_subs(filepath, msg, user_id):
 
 
 async def get_metadata_flags(user_id):
+    from .database.access_db import db
     if not await db.get_metadata_on(user_id):
         return []
 
@@ -206,6 +202,7 @@ async def get_metadata_flags(user_id):
 
 async def encode(filepath, message, msg, audio_map=None, quality=None, custom_name=None):
     from .helper import edit_msg
+    from .database.access_db import db
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
     ex = await db.get_extensions(message.from_user.id)
@@ -671,6 +668,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
 
 async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     from .helper import edit_msg
+    from .database.access_db import db
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
     subtitles_path = os.path.abspath(subtitles_path)
@@ -824,6 +822,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
 async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     from .helper import edit_msg
+    from .database.access_db import db
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
     subtitles_path = os.path.abspath(subtitles_path)
