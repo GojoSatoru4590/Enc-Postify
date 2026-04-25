@@ -8,7 +8,7 @@ from ... import app, download_dir, log, LOGGER, ASSETS_DIR
 
 async def upload_to_tg(new_file, message, msg, caption=None, reply_markup=None):
     from ..database.access_db import db
-    from ..encoding import get_duration, get_width_height
+    from ..encoding import get_duration, get_width_height, take_screenshot, compress_image
     # Variables
     c_time = time.time()
     filename = os.path.basename(new_file)
@@ -17,22 +17,31 @@ async def upload_to_tg(new_file, message, msg, caption=None, reply_markup=None):
     # Thumbnail Logic
     user_id = message.from_user.id
     thumb = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
-    if not os.path.exists(thumb):
-        thumb = None
+    is_fallback = False
+
+    if not os.path.exists(thumb) or os.path.getsize(thumb) == 0:
+        # Fallback to screenshot
+        thumb = os.path.join(os.path.dirname(new_file), f"thumb_{user_id}.jpg")
+        thumb = await take_screenshot(new_file, thumb)
+        is_fallback = True
 
     # Ensure thumbnail is under 200KB for Telegram API
-    if thumb and os.path.getsize(thumb) > 200000:
-        # We could resize it, but for now we follow the pattern of skipping it if too large
-        # to prevent upload failure.
-        thumb = None
+    if thumb:
+        thumb = await compress_image(thumb)
 
     width, height = get_width_height(new_file)
     # Handle Upload
-    if await db.get_upload_as_doc(message.from_user.id) is True:
-        link = await upload_doc(message, msg, c_time, filename, new_file, thumb, caption, reply_markup)
-    else:
-        link = await upload_video(message, msg, new_file, filename,
-                                  c_time, thumb, duration, width, height, caption, reply_markup)
+    try:
+        if await db.get_upload_as_doc(message.from_user.id) is True:
+            link = await upload_doc(message, msg, c_time, filename, new_file, thumb, caption, reply_markup)
+        else:
+            link = await upload_video(message, msg, new_file, filename,
+                                      c_time, thumb, duration, width, height, caption, reply_markup)
+    finally:
+        # Cleanup fallback thumbnail
+        if is_fallback and thumb and os.path.exists(thumb):
+            try: os.remove(thumb)
+            except: pass
 
     return link
 
