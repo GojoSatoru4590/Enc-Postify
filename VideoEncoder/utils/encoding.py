@@ -19,10 +19,16 @@ from .common import edit_msg
 
 def check_hinglish_subtitle(video_path):
     path, _ = os.path.splitext(video_path)
+    name = os.path.basename(path)
     for ext in ['.ass', '.srt']:
+        # Check in same directory as video
         hinglish_path = path + "_Hinglish" + ext
         if os.path.exists(hinglish_path) and os.path.getsize(hinglish_path) > 0:
             return os.path.abspath(hinglish_path)
+        # Check in encode_dir
+        hinglish_encode_path = os.path.join(encode_dir, name + "_Hinglish" + ext)
+        if os.path.exists(hinglish_encode_path) and os.path.getsize(hinglish_encode_path) > 0:
+            return os.path.abspath(hinglish_encode_path)
     return None
 
 def cleanup_temp_subs(msg_id=None):
@@ -452,6 +458,10 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
 
     # Hard Subs
     if h:
+        if not (os.path.exists(subtitles_path) and os.path.getsize(subtitles_path) > 0):
+            LOGGER.error(f"Error: Subtitle missing or empty at {subtitles_path}")
+            return None, f"Subtitle missing or empty at {subtitles_path}"
+
         # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
         subtitles_path = os.path.abspath(subtitles_path)
         # Robust escaping for FFmpeg subtitles filter: escape backslashes then colons then single quotes
@@ -693,10 +703,16 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
 
-    # Prioritize translated Hinglish subtitle
-    hinglish_sub = check_hinglish_subtitle(filepath)
-    if hinglish_sub:
-        subtitles_path = hinglish_sub
+    # Validate passed subtitle or find Hinglish fallback
+    if not (os.path.exists(subtitles_path) and os.path.getsize(subtitles_path) > 0):
+        hinglish_sub = check_hinglish_subtitle(filepath)
+        if hinglish_sub:
+            LOGGER.info(f"Passed subtitle missing, using Hinglish subtitle: {hinglish_sub}")
+            subtitles_path = hinglish_sub
+
+    if not (os.path.exists(subtitles_path) and os.path.getsize(subtitles_path) > 0):
+        LOGGER.error(f"Error: Subtitle missing or empty at {subtitles_path}")
+        return None, f"Subtitle missing or empty at {subtitles_path}"
 
     subtitles_path = os.path.abspath(subtitles_path)
     ex = await db.get_extensions(message.from_user.id)
@@ -859,10 +875,16 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
 
-    # Prioritize translated Hinglish subtitle
-    hinglish_sub = check_hinglish_subtitle(filepath)
-    if hinglish_sub:
-        subtitles_path = hinglish_sub
+    # Validate passed subtitle or find Hinglish fallback
+    if not (os.path.exists(subtitles_path) and os.path.getsize(subtitles_path) > 0):
+        hinglish_sub = check_hinglish_subtitle(filepath)
+        if hinglish_sub:
+            LOGGER.info(f"Passed subtitle missing, using Hinglish subtitle: {hinglish_sub}")
+            subtitles_path = hinglish_sub
+
+    if not (os.path.exists(subtitles_path) and os.path.getsize(subtitles_path) > 0):
+        LOGGER.error(f"Error: Subtitle missing or empty at {subtitles_path}")
+        return None, f"Subtitle missing or empty at {subtitles_path}"
 
     subtitles_path = os.path.abspath(subtitles_path)
     ex = await db.get_extensions(message.from_user.id)

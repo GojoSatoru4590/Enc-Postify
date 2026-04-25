@@ -115,8 +115,9 @@ async def handle_interactive_encode(video_path, sub_path, message, msg, mode, qu
     video_path = os.path.abspath(video_path)
     sub_path = os.path.abspath(sub_path)
 
-    # Ensure sub_path is named correctly for encode if needed
-    sub_dest = os.path.join(encode_dir, str(msg.id) + '.ass')
+    # Ensure sub_path is moved to encode_dir while preserving original filename
+    sub_name = os.path.basename(sub_path)
+    sub_dest = os.path.join(encode_dir, sub_name)
     if sub_path != sub_dest:
         if os.path.exists(sub_path):
             os.rename(sub_path, sub_dest)
