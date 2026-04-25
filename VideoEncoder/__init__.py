@@ -87,8 +87,10 @@ def memory_file(name=None, contents=None, *, bytes=True):
     return file
 
 # Check Folder
-os.makedirs(download_dir, exist_ok=True)
-os.makedirs(encode_dir, exist_ok=True)
+os.makedirs(download_dir, mode=0o777, exist_ok=True)
+os.makedirs(encode_dir, mode=0o777, exist_ok=True)
+os.chmod(download_dir, 0o777)
+os.chmod(encode_dir, 0o777)
 
 if not os.path.isdir('VideoEncoder/utils/extras'):
     os.makedirs('VideoEncoder/utils/extras')
