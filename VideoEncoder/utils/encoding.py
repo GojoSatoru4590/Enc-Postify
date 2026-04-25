@@ -17,6 +17,54 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from .. import LOGGER, download_dir, encode_dir, ASSETS_DIR
 from .common import edit_msg
 
+async def take_screenshot(video_path, output_path):
+    duration = get_duration(video_path)
+    # Take screenshot at 10% of duration or 5 seconds if duration is unknown/short
+    time_offset = str(max(5, int(duration * 0.1))) if duration > 0 else "00:00:05"
+
+    command = [
+        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+        '-ss', time_offset, '-i', video_path,
+        '-vframes', '1', '-q:v', '2', output_path
+    ]
+
+    proc = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    _, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        LOGGER.error(f"Screenshot failed: {stderr.decode().strip()}")
+        return None
+
+    if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+        return output_path
+    return None
+
+async def compress_image(image_path):
+    if not image_path or not os.path.exists(image_path):
+        return None
+
+    # If already under 200KB, no need to compress
+    if os.path.getsize(image_path) <= 200000:
+        return image_path
+
+    output_path = image_path + ".compressed.jpg"
+    # Try different quality levels until it's under 200KB
+    for q in [5, 10, 15, 20]:
+        command = [
+            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+            '-i', image_path, '-q:v', str(q), output_path
+        ]
+        proc = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        await proc.communicate()
+
+        if os.path.exists(output_path) and os.path.getsize(output_path) <= 200000:
+            os.replace(output_path, image_path)
+            return image_path
+
+    if os.path.exists(output_path):
+        os.remove(output_path)
+    return image_path
+
 def check_hinglish_subtitle(video_path):
     path, _ = os.path.splitext(video_path)
     name = os.path.basename(path)
@@ -584,8 +632,15 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     # Thumbnail injection
     user_id = message.from_user.id
     thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
+    is_temp_thumb = False
     if not os.path.exists(thumb_path) or os.path.getsize(thumb_path) == 0:
-        thumb_path = None
+        # Fallback to screenshot for embedding
+        thumb_path = os.path.join(encode_dir, f"thumb_{user_id}_{msg.id}.jpg")
+        thumb_path = await take_screenshot(filepath, thumb_path)
+        is_temp_thumb = True
+
+    if thumb_path:
+        thumb_path = await compress_image(thumb_path)
 
     # Finally
     ffmpeg_path = shutil.which("ffmpeg")
@@ -673,6 +728,11 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     stderr_log = await handle_progress(proc, msg, message, filepath)
     # Wait for the subprocess to finish
     stdout, stderr = await proc.communicate()
+
+    # Cleanup temp thumbnail
+    if is_temp_thumb and thumb_path and os.path.exists(thumb_path):
+        try: os.remove(thumb_path)
+        except: pass
 
     if proc.returncode != 0:
         e_response = stderr.decode().strip()
@@ -792,8 +852,15 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Thumbnail injection
     user_id = message.from_user.id
     thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
-    if not (os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0):
-        thumb_path = None
+    is_temp_thumb = False
+    if not os.path.exists(thumb_path) or os.path.getsize(thumb_path) == 0:
+        # Fallback to screenshot for embedding
+        thumb_path = os.path.join(encode_dir, f"thumb_{user_id}_{msg.id}.jpg")
+        thumb_path = await take_screenshot(filepath, thumb_path)
+        is_temp_thumb = True
+
+    if thumb_path:
+        thumb_path = await compress_image(thumb_path)
 
     # Watermark check
     watermark_file = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
@@ -852,6 +919,11 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     stderr_log = await handle_progress(proc, msg, message, filepath)
     stdout, stderr = await proc.communicate()
 
+    # Cleanup temp thumbnail
+    if is_temp_thumb and thumb_path and os.path.exists(thumb_path):
+        try: os.remove(thumb_path)
+        except: pass
+
     if proc.returncode != 0:
         LOGGER.error(f"FFmpeg hard_sub failed with exit code {proc.returncode}. Error: {stderr.decode().strip()}")
         return None, stderr_log
@@ -899,8 +971,15 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     # Thumbnail injection
     user_id = message.from_user.id
     thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
-    if not (os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0):
-        thumb_path = None
+    is_temp_thumb = False
+    if not os.path.exists(thumb_path) or os.path.getsize(thumb_path) == 0:
+        # Fallback to screenshot for embedding
+        thumb_path = os.path.join(encode_dir, f"thumb_{user_id}_{msg.id}.jpg")
+        thumb_path = await take_screenshot(filepath, thumb_path)
+        is_temp_thumb = True
+
+    if thumb_path:
+        thumb_path = await compress_image(thumb_path)
 
     # Watermark check
     watermark_file = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
@@ -1012,6 +1091,11 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     proc = await asyncio.create_subprocess_exec(*command, output_filepath, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stderr_log = await handle_progress(proc, msg, message, filepath)
     stdout, stderr = await proc.communicate()
+
+    # Cleanup temp thumbnail
+    if is_temp_thumb and thumb_path and os.path.exists(thumb_path):
+        try: os.remove(thumb_path)
+        except: pass
 
     if proc.returncode != 0:
         LOGGER.error(f"FFmpeg soft_code failed with exit code {proc.returncode}. Error: {stderr.decode().strip()}")
