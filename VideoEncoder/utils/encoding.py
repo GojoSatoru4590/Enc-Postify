@@ -134,11 +134,6 @@ def get_media_streams(filepath):
         return []
 
 async def extract_subtitle(filepath):
-    ffmpeg_path = shutil.which("ffmpeg")
-    if not ffmpeg_path:
-        return "Extraction failed: FFmpeg binary not found on the system."
-
-    filepath = os.path.abspath(filepath)
     streams = get_media_streams(filepath)
     sub_stream = None
     sub_index = -1
@@ -177,7 +172,7 @@ async def extract_subtitle(filepath):
         ext = '.srt'
 
     path, _ = os.path.splitext(filepath)
-    output = os.path.abspath(f"{path}{ext}")
+    output = f"{path}{ext}"
 
     # Only remove the target file if it already exists
     if os.path.exists(output):
@@ -187,7 +182,7 @@ async def extract_subtitle(filepath):
             pass
 
     # Use strict rules: map 0:s:0, accurate_seek, copyts
-    command = [ffmpeg_path, '-hide_banner', '-loglevel', 'error', '-y', '-accurate_seek', '-copyts', '-i', filepath, '-map', f'0:s:{sub_index}', output]
+    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-accurate_seek', '-copyts', '-i', filepath, '-map', '0:s:0', output]
 
     proc = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     _, stderr = await proc.communicate()
@@ -213,24 +208,17 @@ async def extract_subs(filepath, msg, user_id):
     else:
         output = os.path.join(encode_dir, str(msg.id) + '.ass')
 
-    ffmpeg_path = shutil.which("ffmpeg")
-    mkve_path = shutil.which("mkvextract")
     try:
         # Use strict rules: map 0:s:0, accurate_seek, copyts
-        if ffmpeg_path:
-            subprocess.call([ffmpeg_path, '-y', '-accurate_seek', '-copyts', '-i', filepath, '-map', '0:s:0', output])
-        else:
-            LOGGER.error("FFmpeg not found during extract_subs")
-
+        subprocess.call(['ffmpeg', '-y', '-accurate_seek', '-copyts', '-i', filepath, '-map', '0:s:0', output])
         # mkvextract might not be in PATH on Windows, handle gracefully
-        if mkve_path:
-            try:
-                subprocess.call([mkve_path, 'attachments', filepath, '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16',
-                                '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40'])
-            except Exception as e:
-                LOGGER.error(f"mkvextract failed: {e}")
-        else:
+        try:
+            subprocess.call(['mkvextract', 'attachments', filepath, '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16',
+                            '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40'])
+        except FileNotFoundError:
             LOGGER.warning("mkvextract not found, skipping attachments extraction.")
+        except Exception as e:
+            LOGGER.error(f"mkvextract failed: {e}")
 
         # Moving fonts is Linux specific and dangerous on Windows to assume /usr/share/fonts/
         # We will only attempt this on Linux-like environments or skip if it fails
@@ -770,7 +758,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     return output_filepath, stderr_log
 
 
-async def hard_sub(filepath, subtitles_path, message, msg, quality=None, custom_name=None):
+async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     from .database.access_db import db
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
@@ -791,9 +779,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None, custom_
     path, extension = os.path.splitext(filepath)
     name = os.path.basename(path)
 
-    if custom_name:
-        output_filepath = os.path.join(encode_dir, custom_name)
-    elif ex == 'MP4':
+    if ex == 'MP4':
         output_filepath = os.path.join(encode_dir, name + '.mp4')
     else:
         output_filepath = os.path.join(encode_dir, name + '.mkv')
@@ -881,12 +867,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None, custom_
     has_watermark = os.path.exists(watermark_file)
 
     # Hardcode subtitles - requires re-encoding video
-    x265 = await db.get_hevc(message.from_user.id)
-    if x265:
-        codec = 'libx265'
-    else:
-        codec = 'libx264'
-
+    # Using libx264 for speed
     ffmpeg_path = shutil.which("ffmpeg")
     if not ffmpeg_path:
         await message.reply("❌ FFmpeg not found on VPS. Please install it.")
@@ -922,7 +903,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None, custom_
     command.extend(video_map_arg)
 
     command.extend([
-        '-c:v', codec, '-preset', 'superfast', '-crf', crf, '-r', '24000/1001'
+        '-c:v', 'libx264', '-preset', 'superfast', '-crf', crf, '-r', '24000/1001'
     ])
     command.extend(v_bitrate)
     command.extend(['-c:a', 'copy', '-map', '0:a?'])
@@ -961,7 +942,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None, custom_
     return output_filepath, stderr_log
 
 
-async def soft_code(filepath, subtitles_path, message, msg, quality=None, custom_name=None):
+async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     from .database.access_db import db
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
@@ -982,11 +963,8 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None, custom
     path, extension = os.path.splitext(filepath)
     name = os.path.basename(path)
 
-    if custom_name:
-        output_filepath = os.path.join(encode_dir, custom_name)
-    else:
-        # Soft coding usually works best with MKV
-        output_filepath = os.path.join(encode_dir, name + '.mkv')
+    # Soft coding usually works best with MKV
+    output_filepath = os.path.join(encode_dir, name + '.mkv')
 
     adv_metadata = await get_metadata_flags(message.from_user.id)
 
@@ -1068,14 +1046,8 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None, custom
 
         command.extend(video_map_arg)
 
-        x265 = await db.get_hevc(message.from_user.id)
-        if x265:
-            codec = 'libx265'
-        else:
-            codec = 'libx264'
-
         command.extend([
-            '-c:v', codec, '-preset', 'superfast', '-crf', crf, '-r', '24000/1001'
+            '-c:v', 'libx264', '-preset', 'superfast', '-crf', crf, '-r', '24000/1001'
         ])
         command.extend(v_bitrate)
         command.extend(['-c:a', 'copy', '-c:s', 'copy', '-map', '0:a?', '-map', '1:s'])
