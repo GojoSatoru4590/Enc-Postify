@@ -14,7 +14,7 @@ from time import time
 from psutil import (boot_time, cpu_count, cpu_percent, disk_usage,
                     net_io_counters, swap_memory, virtual_memory)
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message
 
 from .. import botStartTime, download_dir, encode_dir
 from ..utils.database.access_db import db
@@ -27,7 +27,7 @@ SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 
 START_PIC = "https://graph.org/file/a43e51fdee6998d7074e0-c9255fe3e80803a9a9.jpg"
 FORCE_PIC = "https://graph.org/file/a0947a8895736ff574666-422dfa95e7395c7142.jpg"
-START_MSG = "<b>ʜᴇʏ!!, {mention} ~\nYou woke me up!\n\n<blockquote expandable>I was having such a great dream about world domination... err, I mean, serving you efficiently.\n\nReady to start the show? Send me a video file and let's roll!</blockquote></b>"
+START_MSG = "<b>ʜᴇʏ!!, {mention} ~\n\nYou woke me up!\n\n<blockquote expandable>I was having such a great dream about world domination... err, I mean, serving you efficiently.\n\nReady to start the show? Send me a video file and let's roll!</blockquote></b>"
 
 
 def uptime():
@@ -54,24 +54,21 @@ async def help_message(app, message):
     if not c:
         return
     await AddUserToDatabase(app, message)
-    help_text = "<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>\n" \
-                "<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>\n" \
-                "[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.\n\n" \
-                "➼ <b>Step 2: Upload Your File</b>\n" \
-                "Send your .ass or subtitle file directly to the bot.\n\n" \
-                "➼ <b>Step 3: Select the Engine</b>\n" \
-                "Choose the high-stability Groq engine for lightning-fast results.\n\n" \
-                "➼ <b>Step 4: Wait for Processing</b>\n" \
-                "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation. Once done, you'll receive the translated file.</blockquote>\n\n" \
-                "<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"
+    msg = """<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>
+<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>
+[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.
 
-    help_buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="backToStart"),
-            InlineKeyboardButton("❌ Close", callback_data="closeMeh")
-        ]
-    ])
-    await message.reply_photo(photo=START_PIC, caption=help_text, reply_markup=help_buttons, has_spoiler=True)
+➼ <b>Step 2: Upload Your File</b>
+Send your .ass or subtitle file directly to the bot.
+
+➼ <b>Step 3: Select the Engine</b>
+Choose the high-stability Groq engine for lightning-fast results.
+
+➼ <b>Step 4: Wait for Processing</b>
+The bot will split your file into micro-chunks to ensure high-quality Hinglish translation. Once done, you'll receive the translated file.</blockquote>
+
+<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"""
+    await message.reply_photo(photo=START_PIC, caption=msg, reply_markup=start_but, has_spoiler=True)
 
 
 @Client.on_message(filters.command('stats'))

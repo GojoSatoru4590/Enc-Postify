@@ -91,8 +91,6 @@ async def mirror_status(client, message: Message):
 
 @app.on_callback_query(filters.regex('^status'))
 async def status_pages(client, query: CallbackQuery):
-    print(f"Button pressed: {query.data}")
-    await query.answer()
     data_split = query.data.split()
     cmd = data_split[1]
 
@@ -128,6 +126,7 @@ async def status_pages(client, query: CallbackQuery):
 
         try:
             await edit_msg(query.message, text=msg, reply_markup=buttons)
+            await query.answer("Refreshed!")
         except Exception as e:
             await query.answer(f"Error: {e}")
     else:
