@@ -81,20 +81,11 @@ def is_lazy(original, translated):
 class KeyManager:
     def __init__(self, api_pool):
         self.api_pool = api_pool
-        self.analyzer_idx = 0
-        self.translator_pool = api_pool[1:] if len(api_pool) > 1 else api_pool
-        self.trans_idx = 0
+        self.idx = 0
 
-    def get_analyzer_key(self):
-        return self.api_pool[self.analyzer_idx]
-
-    def rotate_analyzer(self):
-        self.analyzer_idx = (self.analyzer_idx + 1) % len(self.api_pool)
-        return self.get_analyzer_key()
-
-    def get_translator_key(self):
-        key = self.translator_pool[self.trans_idx]
-        self.trans_idx = (self.trans_idx + 1) % len(self.translator_pool)
+    def get_key(self):
+        key = self.api_pool[self.idx]
+        self.idx = (self.idx + 1) % len(self.api_pool)
         return key
 
 def parse_srt(content):
@@ -190,8 +181,8 @@ async def call_groq(client, system_prompt, user_content, api_key, creative_retry
 
     try:
         response = await client.post(url, headers=headers, json=payload, timeout=60.0)
-        await asyncio.sleep(3) # Mandatory 3s delay
         if response.status_code == 200:
+            await asyncio.sleep(3) # Mandatory 3s delay
             data = response.json()
             translated_text = data['choices'][0]['message']['content'].strip()
             translated_text = translated_text.replace('```json', '').replace('```', '').strip()
@@ -205,7 +196,7 @@ async def call_groq(client, system_prompt, user_content, api_key, creative_retry
         return f"❌ Groq Error: {str(e)}"
 
 async def translate_line(client, line, name, context, key_manager, creative_retry=False):
-    api_key = key_manager.get_translator_key()
+    api_key = key_manager.get_key()
     user_content = f"Context: {context}\nSpeaker: {name}\nLine: {line}"
 
     res = await call_groq(client, TRANSLATOR_PROMPT, user_content, api_key, creative_retry=creative_retry)
@@ -213,7 +204,7 @@ async def translate_line(client, line, name, context, key_manager, creative_retr
     # Retry on rate limit with different key
     retries = 0
     while res in ["429", "503"] and retries < len(key_manager.api_pool):
-        api_key = key_manager.get_translator_key()
+        api_key = key_manager.get_key()
         res = await call_groq(client, TRANSLATOR_PROMPT, user_content, api_key, creative_retry=creative_retry)
         retries += 1
 
@@ -229,44 +220,49 @@ async def translate_line(client, line, name, context, key_manager, creative_retr
 
 async def translate_subtitle_chunks(chunk_queue, to_translate, names, api_pool, status_msg):
     key_manager = KeyManager(api_pool)
-    trans_semaphore = asyncio.Semaphore(5) # Max 5 parallel lines
+    chunk_semaphore = asyncio.Semaphore(3) # Triple-Parallel Processing
     results = [None] * len(to_translate)
+    total_chunks = len(chunk_queue)
+    chunks_done = 0
+    progress_lock = asyncio.Lock()
 
     async with httpx.AsyncClient() as client:
-        for chunk_idx, chunk in enumerate(chunk_queue):
-            await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Analyzing chunk {chunk_idx + 1}/{len(chunk_queue)}...")
+        async def chunk_worker(chunk_idx, chunk_text):
+            nonlocal chunks_done
+            async with chunk_semaphore:
+                # STAGE 1: Analysis
+                api_key = key_manager.get_key()
+                context_res = await call_groq(client, ANALYZER_PROMPT, chunk_text, api_key)
 
-            # STAGE 1: Sequential Analysis
-            api_key = key_manager.get_analyzer_key()
-            context_res = await call_groq(client, ANALYZER_PROMPT, chunk, api_key)
+                retries = 0
+                while context_res in ["429", "503"] and retries < len(api_pool):
+                    api_key = key_manager.get_key()
+                    context_res = await call_groq(client, ANALYZER_PROMPT, chunk_text, api_key)
+                    retries += 1
 
-            # Rotation for Key 1 (Analyzer)
-            retries = 0
-            while context_res in ["429", "503"] and retries < len(api_pool):
-                api_key = key_manager.rotate_analyzer()
-                context_res = await call_groq(client, ANALYZER_PROMPT, chunk, api_key)
-                retries += 1
+                if context_res.startswith("❌") or context_res in ["429", "503"]:
+                    context_res = "General anime scene context."
 
-            if context_res.startswith("❌") or context_res in ["429", "503"]:
-                context_res = "General anime scene context." # Fallback
+                # STAGE 2: Parallel Translation within chunk
+                # We use 15 lines per chunk now
+                start_idx = chunk_idx * 15
+                end_idx = min(start_idx + 15, len(to_translate))
 
-            # STAGE 2: Parallel Translation of lines in this chunk
-            start_idx = chunk_idx * 10
-            end_idx = min(start_idx + 10, len(to_translate))
+                line_tasks = []
+                for i in range(start_idx, end_idx):
+                    line_tasks.append(translate_line(client, to_translate[i], names[i], context_res, key_manager))
 
-            async def worker(idx):
-                async with trans_semaphore:
-                    line = to_translate[idx]
-                    name = names[idx]
-                    translated = await translate_line(client, line, name, context_res, key_manager)
-                    results[idx] = translated
+                chunk_results = await asyncio.gather(*line_tasks)
+                for i, res in enumerate(chunk_results):
+                    results[start_idx + i] = res
 
-            tasks = [worker(i) for i in range(start_idx, end_idx)]
-            await asyncio.gather(*tasks)
+                async with progress_lock:
+                    chunks_done += 1
+                    progress = int((chunks_done) * 100 / total_chunks)
+                    await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translated {chunks_done}/{total_chunks} chunks ({progress}%)...")
 
-            # Update progress
-            progress = int((chunk_idx + 1) * 100 / len(chunk_queue))
-            await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translated {end_idx}/{len(to_translate)} lines ({progress}%)...")
+        chunk_tasks = [chunk_worker(i, chunk_text) for i, chunk_text in enumerate(chunk_queue)]
+        await asyncio.gather(*chunk_tasks)
 
     return None, results
 
@@ -411,11 +407,11 @@ async def process_translation(bot, cb, model_type, model_name):
                     tags_map.append(placeholders)
                     names.append("") # SRT doesn't have speaker info in header
 
-            # Send 10 lines at once for context
+            # Send 15 lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), 10):
+            for i in range(0, len(to_translate), 15):
                 lines_with_names = []
-                for j in range(i, min(i+10, len(to_translate))):
+                for j in range(i, min(i+15, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
@@ -450,11 +446,11 @@ async def process_translation(bot, cb, model_type, model_name):
                     tags_map.append(placeholders)
                     names.append(item.get('name', ''))
 
-            # Send 10 lines at once for context
+            # Send 15 lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), 10):
+            for i in range(0, len(to_translate), 15):
                 lines_with_names = []
-                for j in range(i, min(i+10, len(to_translate))):
+                for j in range(i, min(i+15, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
