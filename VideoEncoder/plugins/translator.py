@@ -17,21 +17,22 @@ BATCH_SIZE = 15
 ANALYZER_PROMPT = (
     "Analyze the following anime subtitle lines and provide a simple 'Style Guide' for this batch.\n"
     "Identify:\n"
-    "1. Gender of speakers (Eri is female, Ogino is male).\n"
-    "2. Tone (Informal/Tu or Formal/Tum).\n"
-    "Instructions for Style Guide: Output a simple line like: 'Gender: Male, Tone: Informal/Tu, Avoid Shuddh Hindi, Keep it conversational'."
+    "1. Gender: Identify speaker gender (Male uses 'Raha', Female uses 'Rahi').\n"
+    "2. Respect Level: Elder/Boss uses 'Aap', Peers/Friends uses 'Tu/Tera'.\n"
+    "3. Key Terms: Context check for specific terms (e.g., 'Wasp' should be 'Bhirad').\n"
+    "Instructions for Style Guide: Output a simple line like: 'Gender: Male, Respect: Tu/Tera, Key Terms: Wasp=Bhirad, Avoid Shuddh Hindi, Keep it conversational'."
 )
 
 TRANSLATOR_PROMPT = (
     "You are a professional Anime Subtitle Translator. Use the provided Style Guide to translate lines into short, cool Hinglish (Anime Fury Style).\n\n"
-    "CORE RULE: Use colloquial Hinglish. 'Mujhe khed hai' is forbidden—use 'Sorry bhai'. 'Anumati' is forbidden—use 'Permission'. Casual youth slang only.\n\n"
+    "CORE RULE: Use colloquial Hinglish. Strictly ban 'Khed', 'Anumati', 'Pratiksha'. Use 'Sorry', 'Permission', 'Wait'. Casual youth slang only.\n\n"
     "LINGUISTIC RULES:\n"
     "- SHORT & PUNCHY: Keep it simple. Translate the 'vibe'.\n"
     "- NO SHUDDH HINDI: Avoid formal Hindi words. Use Hinglish equivalents.\n"
     "- NO ENGLISH SENTENCES: Ensure it's Hinglish, not just plain English.\n"
-    "- SPELLING: Use 'isey' (never ise), 'usey' (never use), 'arey' (never are), 'jaa' (never ja).\n"
-    "- GENDER: Eri is female (feminine verbs: rahi hai/kiya), Ogino is male (masculine: raha hai/kiya).\n"
-    "- TU/TERA: Use 'Tu/Tujhe/Tera' for casual. 'Tum' only if formal.\n\n"
+    "- SPELLING: Always use 'isey' (NOT 'ise'), 'usey' (NOT 'use'), 'arey' (NOT 'arre').\n"
+    "- PRESERVE 'Oh': DO NOT change 'Oh' to 'Arey'. Keep 'Oh' as it is (e.g., 'Oh, tumhe ye pasand aaya').\n"
+    "- GENDER & RESPECT: Follow the Style Guide for 'Raha/Rahi' and 'Aap/Tu'.\n\n"
     "PROTECTION:\n"
     "- Do NOT modify ASS tags like {\\an8}, {\\pos} or line breaks \\N.\n\n"
     "OUTPUT: UTF-8 plain text only. One translated line per input line. No extra text, no Markdown, no JSON."
@@ -193,21 +194,25 @@ async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
 
 async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
     translated_texts = []
-    pool = list(api_pool)
     idx = 0
 
-    async def get_available_key():
-        nonlocal pool
-        while True:
-            for _ in range(len(pool)):
-                if not is_key_banned(pool[0]):
-                    return pool[0]
-                pool.append(pool.pop(0))
+    # Key 1 for Analyzer
+    analyzer_key = api_pool[0]
+    # Keys 2-5 for Translator (if available, else fallback to all)
+    translator_pool = list(api_pool[1:]) if len(api_pool) > 1 else list(api_pool)
 
-            # All banned
+    async def get_translator_key():
+        nonlocal translator_pool
+        while True:
+            for _ in range(len(translator_pool)):
+                if not is_key_banned(translator_pool[0]):
+                    return translator_pool[0]
+                translator_pool.append(translator_pool.pop(0))
+
+            # All translator keys banned
             earliest_expiry = min(BANNED_KEYS.values())
             wait_time = max(5, int(earliest_expiry - time.time()) + 1)
-            await edit_msg(status_msg, f"⚠️ All {len(pool)} keys rate-limited. Sleeping {wait_time}s...")
+            await edit_msg(status_msg, f"⚠️ All translator keys rate-limited. Sleeping {wait_time}s...")
             await asyncio.sleep(wait_time)
 
     while idx < len(chunk_queue):
@@ -215,75 +220,95 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
         chunk = chunk_queue[idx]
         style_guide = ""
 
-        # STAGE 1: THE ANALYZER
+        # STAGE 1: THE BRAIN (Sequential Analysis - Key 1)
         while not style_guide:
-            api_key = await get_available_key()
-            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟏: 𝐀𝐧𝐚𝐥𝐲𝐳𝐞𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}...)")
-            res, retry_after = await call_groq(ANALYZER_PROMPT, chunk, api_key)
+            if is_key_banned(analyzer_key):
+                wait_time = max(5, int(BANNED_KEYS[analyzer_key] - time.time()) + 1)
+                await edit_msg(status_msg, f"⚠️ Analyzer Key (Key 1) rate-limited. Sleeping {wait_time}s...")
+                await asyncio.sleep(wait_time)
+                continue
+
+            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟏: 𝐀𝐧𝐚𝐥𝐲𝐳𝐞𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {analyzer_key[:6]}...)")
+            res, retry_after = await call_groq(ANALYZER_PROMPT, chunk, analyzer_key)
 
             if res in ["429", "503"]:
-                blacklist_key(api_key, retry_after)
-                pool.append(pool.pop(0))
+                blacklist_key(analyzer_key, retry_after)
                 await asyncio.sleep(5)
                 continue
 
             if res == "RETRY_REQUIRED":
-                pool.append(pool.pop(0))
                 await asyncio.sleep(5)
                 continue
 
             if res.startswith("❌"): return res, None
 
             style_guide = res
-            pool.append(pool.pop(0))
 
-        # STAGE 2: THE TRANSLATOR
+        # STAGE 2: THE HANDS (Smart Rotation Translation - Keys 2-5)
         translated_chunk_lines = []
         temp = 0.2
         while not translated_chunk_lines:
-            api_key = await get_available_key()
+            api_key = await get_translator_key()
             await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟐: 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}..., Temp: {temp})")
             res, retry_after = await call_groq(TRANSLATOR_PROMPT, f"Style Guide:\n{style_guide}\n\nLines to Translate:\n{chunk}", api_key, temperature=temp)
 
             if res in ["429", "503"]:
                 blacklist_key(api_key, retry_after)
-                pool.append(pool.pop(0))
-                await asyncio.sleep(5)
+                translator_pool.append(translator_pool.pop(0))
+                await asyncio.sleep(5) # Smart Rotation: Sleep 5s and switch
                 continue
 
             if res == "RETRY_REQUIRED":
-                pool.append(pool.pop(0))
+                translator_pool.append(translator_pool.pop(0))
                 await asyncio.sleep(5)
                 continue
 
             if res.startswith("❌"): return res, None
 
-            # Anti-Lazy Shield & Cleanup
+            # Quality Guard (Anti-Lazy Shield) & Cleanup
             res_lines = [l.strip() for l in res.strip().split('\n') if l.strip()]
             is_failing = False
-            if len(res_lines) < len(original_lines) * 0.7:
+
+            # 1. Strict Line Count Check (DO NOT bypass/fallback)
+            if len(res_lines) != len(original_lines):
                 is_failing = True
 
+            # 2. Auxiliary Verb Detection (Anti-Lazy)
+            aux_verbs = [r'\bthe\b', r'\bwas\b', r'\bwere\b']
+
             temp_lines = []
-            for i, line in enumerate(original_lines):
-                if i < len(res_lines):
+            if not is_failing:
+                for i, line in enumerate(original_lines):
                     trans_line = re.sub(r'^\s*\[.*?\]:\s*', '', res_lines[i]).strip()
+
+                    # 3. Identity Check (identical to source)
                     if SequenceMatcher(None, line.lower(), trans_line.lower()).ratio() >= 0.8:
                         is_failing = True
                         break
+
+                    # 4. English Auxiliary Verb Check
+                    for verb in aux_verbs:
+                        if re.search(verb, trans_line.lower()):
+                            is_failing = True
+                            break
+                    if is_failing: break
+
                     temp_lines.append(trans_line)
-                else:
-                    temp_lines.append(line)
 
             if is_failing:
-                pool.append(pool.pop(0))
+                translator_pool.append(translator_pool.pop(0))
                 temp = min(temp + 0.2, 1.0)
                 await edit_msg(status_msg, f"🔄 Lazy response detected. Retrying batch {idx+1} with temp {temp}...")
                 await asyncio.sleep(5)
                 continue
 
             translated_chunk_lines = temp_lines
-            pool.append(pool.pop(0))
+            translator_pool.append(translator_pool.pop(0))
+
+            # TEST MODE: Preview first 10 lines of the first batch
+            if idx == 0:
+                preview = "\n".join(translated_chunk_lines[:10])
+                LOGGER.info(f"--- TEST MODE PREVIEW (Batch 1) ---\n{preview}\n----------------------------------")
 
         translated_texts.extend(translated_chunk_lines)
         idx += 1
