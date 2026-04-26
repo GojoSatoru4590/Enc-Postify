@@ -15,13 +15,15 @@ async def OpenSettings(event: Message, user_id: int):
     from .database.access_db import db
     from .database.add_user import AddUserToDatabase
     try:
-        text = "Settings of the Bot"
+        text = "<b>⚙️ Settings Menu - Configure Your Bot:</b>"
         buttons = [
-            [InlineKeyboardButton("ᴠɪᴅᴇᴏ", callback_data="VideoSettings"), InlineKeyboardButton(
-                "ᴀᴜᴅɪᴏ", callback_data="AudioSettings")],
-            [InlineKeyboardButton("ᴇxᴛʀᴀs", callback_data="ExtraSettings"), InlineKeyboardButton(
-                "ʙᴀᴄᴋ", callback_data="backToStart")],
-            [InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")]
+            [
+                InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ", callback_data="how_to_translate"),
+                InlineKeyboardButton("🖼️ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="back_watermark")
+            ],
+            [
+                InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+            ]
         ]
         try:
             await edit_msg(

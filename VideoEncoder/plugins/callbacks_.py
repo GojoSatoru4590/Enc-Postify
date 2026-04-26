@@ -9,7 +9,7 @@ import asyncio
 from pyrogram import Client
 from pyrogram.types import CallbackQuery, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 
-from .. import app, download_dir, log, owner, sudo_users, LOGGER
+from .. import app, download_dir, log, owner, sudo_users, LOGGER, ASSETS_DIR
 from ..plugins.queue import queue_answer
 from ..utils.database.access_db import db
 from ..utils.settings import (AudioSettings, ExtraSettings, OpenSettings,
@@ -22,6 +22,7 @@ from ..video_utils.audio_selector import sessions
 
 @app.on_callback_query()
 async def callback_handlers(bot: Client, cb: CallbackQuery):
+    print(f"Button pressed: {cb.data}")
     await cb.answer()
     try:
         # Import plugins on demand to avoid circular imports if any
@@ -573,7 +574,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
 
             help_buttons = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("🔙 Back to Home", callback_data="backToStart"),
+                    InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="backToStart"),
                     InlineKeyboardButton("❌ Close", callback_data="closeMeh")
                 ]
             ])
@@ -596,7 +597,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
 
             watermark_buttons = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("🔙 Back to Home", callback_data="backToStart"),
+                    InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="backToStart"),
                     InlineKeyboardButton("❌ Close", callback_data="closeMeh")
                 ]
             ])

@@ -59,6 +59,8 @@ def map(pos):
 
 
 async def queue_answer(app, callback_query):
+    print(f"Button pressed: {callback_query.data}")
+    await callback_query.answer()
     chatid = callback_query.from_user.id
     messageid = callback_query.message.id
     pos = int(callback_query.data.split('+')[1])
