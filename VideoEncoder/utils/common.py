@@ -24,5 +24,7 @@ async def edit_msg(message, text=None, **kwargs):
         if 'caption' in kwargs:
             return await message.edit_caption(**kwargs)
         return await message.edit(**kwargs)
-    except:
-        pass
+    except MessageNotModified:
+        return
+    except Exception as e:
+        LOGGER.error(f"Error in edit_msg: {e}")
