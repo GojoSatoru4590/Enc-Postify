@@ -54,17 +54,24 @@ async def help_message(app, message):
     if not c:
         return
     await AddUserToDatabase(app, message)
-    help_menu_text = "<blockquote><b>Help Menu - Choose an Option:</b></blockquote>"
-    help_menu_buttons = InlineKeyboardMarkup([
+    help_text = "<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>\n" \
+                "<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>\n" \
+                "[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.\n\n" \
+                "➼ <b>Step 2: Upload Your File</b>\n" \
+                "Send your .ass or subtitle file directly to the bot.\n\n" \
+                "➼ <b>Step 3: Select the Engine</b>\n" \
+                "Choose the high-stability Groq engine for lightning-fast results.\n\n" \
+                "➼ <b>Step 4: Wait for Processing</b>\n" \
+                "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation. Once done, you'll receive the translated file.</blockquote>\n\n" \
+                "<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"
+
+    help_buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ", callback_data="how_to_translate"),
-            InlineKeyboardButton("🖼️ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="how_watermark_info")
-        ],
-        [
-            InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+            InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="backToStart"),
+            InlineKeyboardButton("❌ Close", callback_data="closeMeh")
         ]
     ])
-    await message.reply_photo(photo=START_PIC, caption=help_menu_text, reply_markup=help_menu_buttons, has_spoiler=True)
+    await message.reply_photo(photo=START_PIC, caption=help_text, reply_markup=help_buttons, has_spoiler=True)
 
 
 @Client.on_message(filters.command('stats'))
