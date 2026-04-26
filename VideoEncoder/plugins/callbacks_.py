@@ -22,8 +22,8 @@ from ..video_utils.audio_selector import sessions
 
 @app.on_callback_query()
 async def callback_handlers(bot: Client, cb: CallbackQuery):
-    print(f"Button pressed: {cb.data}")
     await cb.answer()
+    print(f"Button pressed: {cb.data}")
     try:
         # Import plugins on demand to avoid circular imports if any
         from .watermark import watermark_sessions, WATERMARK_PIC
@@ -61,6 +61,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             await VideoSettings(cb.message, user_id=cb.from_user.id)
 
         elif cb.data == "OpenSettings":
+            print("Executing Settings Menu...")
             await OpenSettings(cb.message, user_id=cb.from_user.id)
 
         elif cb.data == "AudioSettings":
@@ -539,6 +540,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             await cb.message.delete()
 
         elif cb.data == "help_callback":
+            print("Executing Help Menu...")
             help_menu_text = "<blockquote><b>Help Menu - Choose an Option:</b></blockquote>"
             help_menu_buttons = InlineKeyboardMarkup([
                 [
