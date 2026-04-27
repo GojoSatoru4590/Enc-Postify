@@ -13,7 +13,28 @@ sᴇɴᴅ ʏᴏᴜʀ .ᴀss ᴏʀ sᴜʙᴛɪᴛʟᴇ ғɪʟᴇ ᴅɪʀᴇᴄᴛ
 ᴛʜᴇ ʙᴏᴛ ᴡɪʟʟ sᴘʟɪᴛ ʏᴏᴜʀ ғɪʟᴇ ɪɴᴛᴏ ᴍɪᴄʀᴏ-ᴄʜᴜɴᴋs ᴛᴏ ᴇɴsᴜʀᴇ ʜɪɢʜ-ǫᴜᴀʟɪᴛʏ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.</blockquote>
 ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ ᴜsᴇs ᴀɴ ᴏᴘᴛɪᴍɪᴢᴇᴅ ɢʀᴏǫ-ᴏɴʟʏ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ ғᴏʀ 100% sᴛᴀʙɪʟɪᴛʏ!"""
 
-METADATA_HELP_TEXT = HELP_TEXT
+METADATA_HELP_TEXT = """ᴍᴀɴᴀɢɪɴɢ ᴍᴇᴛᴀᴅᴀᴛᴀ ғᴏʀ ʏᴏᴜʀ ᴠɪᴅᴇᴏs ᴀɴᴅ ғɪʟᴇs
+<blockquote expandable>ᴠᴀʀɪᴏᴜꜱ ᴍᴇᴛᴀᴅᴀᴛᴀ:
+- ᴛɪᴛʟᴇ: Descriptive title of the media.
+- ᴀᴜᴛʜᴏʀ: The creator or owner of the media.
+- ᴀʀᴛɪꜱᴛ: The artist associated with the media.
+- ᴀᴜᴅɪᴏ: Title or description of audio content.
+- ꜱᴜʙᴛɪᴛʟᴇ: Title of subtitle content.
+- ᴠɪᴅᴇᴏ: Title or description of video content.
+
+ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴛᴜʀɴ ᴏɴ ᴏғғ ᴍᴇᴛᴀᴅᴀᴛᴀ:
+➜ /metadata: Turn on or off metadata.
+
+ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ꜱᴇᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:
+➜ /settitle: Set a custom title of media.
+➜ /setauthor: Set the author.
+➜ /setartist: Set the artist.
+➜ /setaudio: Set audio title.
+➜ /setsubtitle: Set subtitle title.
+➜ /setvideo: Set video title.
+
+ᴇxᴀᴍᴘʟᴇ: /settitle Your Title Here</blockquote>
+ᴜꜱᴇ ᴛʜᴇꜱᴇ ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴇɴʀɪᴄʜ ʏᴏᴜʀ ᴍᴇᴅɪᴀ ᴡɪᴛʜ ᴀᴅᴅɪᴛɪᴏɴᴀʟ ᴍᴇᴛᴀᴅᴀᴛᴀ ɪɴꜰᴏʀᴍᴀᴛɪᴏɴ!"""
 
 output = InlineKeyboardMarkup([
     [

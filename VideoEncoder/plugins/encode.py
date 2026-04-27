@@ -56,7 +56,8 @@ async def quality_encode(app, message):
             custom_name = os.path.basename(parts[1].strip())
 
     if len(data) == 1:
-        await handle_tasks(message, cmd, custom_name=custom_name)
+        edit_msg = await message.reply_text("Processing...")
+        await handle_tasks(message, cmd, msg=edit_msg, custom_name=custom_name)
     else:
         await message.reply(f"📔 Waiting for queue for {cmd}...")
     await asyncio.sleep(1)
