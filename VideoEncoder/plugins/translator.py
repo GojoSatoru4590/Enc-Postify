@@ -13,20 +13,49 @@ from ..utils.encoding import extract_subtitle, get_width_height
 
 ANALYZER_PROMPT = (
     "Analyze the raw English subtitle lines and context. "
+    "Identify the speaker's gender and the social relationship/hierarchy between characters.\n"
+    "Hierarchy categories:\n"
+    "- elder_master: To Elders/Masters/Strangers\n"
+    "- formal: Between Two Elders/Formal\n"
+    "- friends: Friends/Siblings (Conversational)\n"
+    "- enemies: Enemies/Fights (Harsh)\n\n"
     "Output ONLY a JSON object with these keys: "
-    "{\"gender\": \"male/female\", \"tone\": \"casual/serious\", \"context\": \"summary\"}."
+    "{\"gender\": \"male/female\", \"hierarchy\": \"elder_master/formal/friends/enemies\", \"tone\": \"casual/serious\", \"context\": \"summary\"}."
 )
 
 TRANSLATOR_PROMPT = (
     "You are a professional Anime Subtitler. Use the Phase 1 analysis to translate into punchy, Street-Style Hinglish.\n\n"
-    "Rules:\n"
-    "- Match gender and tone from analysis.\n"
-    "- Use 'Isey'/'Usey'.\n"
-    "- Keep 'Oh' for reactions.\n"
-    "- Use 'Abey', 'Arey', 'Yaar'.\n"
-    "- Ensure flow feels natural, not robotic.\n"
-    "- Keep sentences short and punchy like professional subbing styles.\n"
-    "- Output ONLY the translated text string."
+    "SOCIAL HIERARCHY RULES:\n"
+    "- elder_master: Use 'Aap' (Endings: -iye, -hain).\n"
+    "- formal: Use 'Tum' (Endings: -o, -hai).\n"
+    "- friends: Use 'Tum' or 'Tu' (Conversational).\n"
+    "- enemies: Use 'Tu' or 'Abey' (Harsh endings).\n\n"
+    "GENDER TERMINATIONS:\n"
+    "- MALE: 'Raha hoon', 'Karta hoon', 'Gaya tha', 'Samajh gaya'.\n"
+    "- FEMALE: 'Rahi hoon', 'Karti hoon', 'Gayi thi', 'Samajh gayi'.\n\n"
+    "MASTER WORD-LIST:\n"
+    "1. This/It ➔ Isey | 2. That/Him/Her ➔ Usey | 3. They/Them ➔ Wo log / Unhe | 4. Who ➔ Kaun | 5. My/Mine ➔ Mera / Mere\n"
+    "6. You (Respect) ➔ Aap | 7. You (Casual) ➔ Tum | 8. You (Aggressive) ➔ Tu / Abey | 9. Your/Yours ➔ Tera / Tumhara | 10. Everyone ➔ Sab / Sab log\n"
+    "11. Actually ➔ Asal mein | 12. Anyway ➔ Khair / Chodo usey | 13. But ➔ Par / Lekin | 14. Wait ➔ Ruk / Wait kar | 15. Sorry ➔ Maaf karna\n"
+    "16. Help ➔ Madad / Help | 17. Please ➔ Please / Zara | 18. Excuse me ➔ Suno / Suniye | 19. Hey ➔ Abey / Oye | 20. Listen ➔ Sun / Meri baat sun\n"
+    "21. Right? ➔ Hai na? | 22. Seriously? ➔ Serious ho? / Mazak kar rahe ho? | 23. Damn/Shit ➔ Lanaat hai / Satyanash / Teri toh | 24. Brother ➔ Bhai / Bhaiyya | 25. Sir/Master ➔ Sir / Malik / Master\n"
+    "26. Look/See ➔ Dekh / Dekho | 27. Understand ➔ Samajh gaya / Samajh raha hai | 28. Go/Gone ➔ Niklo / Chala gaya | 29. Come ➔ Aa / Aao | 30. Stop ➔ Ruko / Bas kar\n"
+    "31. Start ➔ Shuru kar / Shuru ho jao | 32. Kill ➔ Khatam kar dunga / Maar dunga | 33. Die ➔ Mar jaa / Maut | 34. Live ➔ Zinda / Jeena | 35. Win ➔ Jeet / Jeetna\n"
+    "36. Lose ➔ Haar / Haar gaya | 37. Strong ➔ Taqatwar / Mazboot | 38. Weak ➔ Kamzor | 39. Protect ➔ Bachana / Hifazat karna | 40. Attack ➔ Hamla / Attack\n"
+    "41. Why ➔ Kyun | 42. How ➔ Kaise | 43. What ➔ Kya | 44. Where ➔ Kahan | 45. When ➔ Kab | 46. Maybe ➔ Shayad | 47. Sure/Of course ➔ Bilkul / Haan kyun nahi\n"
+    "48. Problem ➔ Dikkat / Problem / Lafda | 49. Everything ➔ Sab kuch | 50. Nothing ➔ Kuch nahi | 51. Someone ➔ Koi | 52. Shut up ➔ Chup kar / Mooh band rakh\n"
+    "53. Don't worry ➔ Fikar mat kar / Tension mat le | 54. I see ➔ Achha toh ye baat hai / Samajh gaya | 55. Amazing/Cool ➔ Gazab / Zabardast | 56. Scared ➔ Dar gaya / Khauf | 57. Angry ➔ Gussa\n"
+    "58. Happy ➔ Khush | 59. Sad ➔ Dukhi / Pareshan | 60. Beautiful/Pretty ➔ Khoobsurat / Pyari | 61. Magic ➔ Magic / Jadoo | 62. Level ➔ Level\n"
+    "63. System ➔ System | 64. Status ➔ Status | 65. Skill ➔ Skill / Hunar | 66. Power ➔ Power / Taqat | 67. Quest/Task ➔ Kam / Mission\n"
+    "68. Points ➔ Points | 69. Monster ➔ Monster / Rakshas | 70. Dungeon ➔ Dungeon / Gufa | 71. Already ➔ Pehle hi | 72. Still ➔ Abhi bhi | 73. Again ➔ Phir se\n"
+    "74. Never ➔ Kabhi nahi | 75. Forever ➔ Hamesha ke liye | 76. Enough ➔ Kaafi hai | 77. Too much ➔ Bohot zyada | 78. Little bit ➔ Thoda sa | 79. Actually ➔ Sach bolu toh\n"
+    "80. Believe ➔ Yakeen / Bharosa | 81. I am sorry ➔ Mujhe maaf kar do / I'm sorry | 82. I will do it (M) ➔ Main ye kar dunga | 83. I will do it (F) ➔ Main ye kar dungi | 84. Where are you going? (Elder) ➔ Aap kahan ja rahe hain?\n"
+    "85. Where are you going? (Friend) ➔ Tu kahan ja raha hai? | 86. Don't touch me! ➔ Mujhe haat mat lagana! | 87. Look at this ➔ Isey dekho | 88. Get out ➔ Niklo yahan se / Bahar nikal\n\n"
+    "CORE DIRECTIVES:\n"
+    "- Output ONLY translated lines wrapped in <t> and </t> tags.\n"
+    "- Match gender and hierarchy from Analysis.\n"
+    "- Keep sentences short, accurate, and punchy.\n"
+    "- Ensure natural flow, avoid robotic literal translation."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -127,12 +156,12 @@ def parse_ass(content):
     return header, events, playresx, playresy
 
 
-async def call_groq(system_prompt, user_content, api_key):
+async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
     if not user_content.strip(): return user_content
     model_name = "llama-3.3-70b-versatile"
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": 0.2}
+    payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": temperature}
 
     async with httpx.AsyncClient() as client:
         try:
@@ -154,59 +183,76 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
     translated_texts = []
     idx = 0
     trans_key_idx = 1 # Start rotation from Key 2 (index 1)
+
+    # Process original to_translate lines to include XML tagging for Phase 2
+    # chunk_queue currently has 10 lines joined by \n with [name]: prefix
+    # We will rebuild it with <t> tags inside translate loop for more control
+
     while idx < len(chunk_queue):
+        # original_lines are protected lines without [name] prefix
         original_lines = to_translate[idx*10 : (idx+1)*10]
-        chunk = chunk_queue[idx]
+        # chunk is the one with [name] prefixes
+        raw_lines_with_names = chunk_queue[idx].split('\n')
+        xml_chunk = "\n".join([f"<t>{line}</t>" for line in raw_lines_with_names])
 
         success = False
+        temp = 0.2
         while not success:
             # Phase 1: The Analyst (Key 1 ONLY)
             api_key_1 = api_pool[0]
             await edit_msg(status_msg, f"⏳ [𝐀𝐧𝐚𝐥𝐲𝐬𝐭] : Analyzing chunk {idx+1}/{len(chunk_queue)}...")
-            analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
+            analysis_res = await call_groq(ANALYZER_PROMPT, chunk_queue[idx], api_key_1)
 
             if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
                 await asyncio.sleep(5)
-                analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
+                analysis_res = await call_groq(ANALYZER_PROMPT, chunk_queue[idx], api_key_1)
                 if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
-                    analysis_res = '{"gender": "neutral", "tone": "casual", "context": "general anime scene"}'
+                    analysis_res = '{"gender": "neutral", "hierarchy": "friends", "tone": "casual", "context": "general anime scene"}'
 
             # Phase 2: The Translator (Staggered Rotation: Keys 2-5)
             keys_tried = 0
             while keys_tried < 4:
                 api_key_trans = api_pool[trans_key_idx]
-                await edit_msg(status_msg, f"⏳ [𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Translating chunk {idx+1}/{len(chunk_queue)} using Key {trans_key_idx+1}...")
-                res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_trans)
+                await edit_msg(status_msg, f"⏳ [𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Translating chunk {idx+1}/{len(chunk_queue)} (Temp: {temp:.1f})...")
+                res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", api_key_trans, temperature=temp)
 
                 if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
                     await asyncio.sleep(2)
                     trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
                     keys_tried += 1
                 else:
+                    # Extraction and Verification
+                    res_lines = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
+                    if len(res_lines) != len(original_lines):
+                        LOGGER.warning(f"Line count mismatch in chunk {idx+1}: Expected {len(original_lines)}, got {len(res_lines)}. Retrying...")
+                        temp = min(temp + 0.1, 0.5)
+                        await asyncio.sleep(2)
+                        trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
+                        keys_tried += 1
+                        continue
+
                     # Success
                     if trans_key_idx == 4: # Key 5
                         await edit_msg(status_msg, f"✅ Chunk {idx+1} translated. Taking 10s pause...")
                         await asyncio.sleep(10)
                     else:
                         await asyncio.sleep(2)
+
+                    for trans_line in res_lines:
+                        # Clean up any remaining speaker prefix that AI might have included inside <t>
+                        clean_line = re.sub(r'^\[.*?\]:\s*', '', trans_line.strip()).strip()
+                        translated_texts.append(clean_line)
+
                     trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
                     success = True
                     break
 
             if not success:
-                await edit_msg(status_msg, f"⚠️ All keys failed for chunk {idx+1}. Emergency pause 15s...")
+                await edit_msg(status_msg, f"⚠️ All keys failed or verification failed for chunk {idx+1}. Emergency pause 15s...")
                 await asyncio.sleep(15)
+                temp = 0.2 # Reset temp for fresh start
                 # Loop will restart from Phase 1
 
-        # Process the successful translation
-        res_lines = res.strip().split('\n')
-        for i, line in enumerate(original_lines):
-            if i < len(res_lines):
-                trans_line = res_lines[i].strip()
-                trans_line = re.sub(r'^\[.*?\]:\s*', '', trans_line).strip()
-                translated_texts.append(trans_line)
-            else:
-                translated_texts.append(line)
         idx += 1
     return None, translated_texts
 
