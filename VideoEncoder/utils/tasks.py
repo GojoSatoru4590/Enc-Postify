@@ -1,5 +1,4 @@
 
-
 import asyncio
 import html
 import os
@@ -16,59 +15,51 @@ from requests.utils import unquote
 from .. import LOGGER, data, download_dir, encode_dir, video_mimetype
 from ..video_utils.audio_selector import AudioSelect
 
-async def handle_sub_extract(filepath, message, msg):
+async def handle_sub_extract(filepath, message, edit_msg):
     from .encoding import extract_subtitle
     from .uploads.telegram import upload_doc
-    await msg.edit("Processing... ⏳")
+    await edit_msg.edit("Processing... ⏳")
     result = await extract_subtitle(filepath)
     if os.path.isfile(result):
         try:
-            await upload_doc(message, msg, 0, os.path.basename(result), result)
-            await msg.edit("Subtitle extracted and uploaded successfully!")
+            await upload_doc(message, edit_msg, 0, os.path.basename(result), result)
+            await edit_msg.edit("Subtitle extracted and uploaded successfully!")
         except Exception as e:
-            await msg.edit(f"Error while uploading: {e}")
+            await edit_msg.edit(f"Error while uploading: {e}")
         finally:
             if os.path.isfile(result):
                 os.remove(result)
     else:
-        await msg.edit(f"Failed to extract subtitles: {result}")
+        await edit_msg.edit(f"Failed to extract subtitles: {result}")
 
     # Cleanup video file
     if os.path.isfile(filepath):
         os.remove(filepath)
 
 
-async def handle_encode(filepath, message, msg, audio_map=None, quality=None, custom_name=None):
+async def handle_encode(filepath, message, edit_msg, audio_map=None, quality=None, custom_name=None):
     from .encoding import encode, extract_subs
     from .uploads import upload_worker
     from .database.access_db import db
-    sub_path = os.path.join(encode_dir, str(msg.id) + '.ass')
+    sub_path = os.path.join(encode_dir, str(edit_msg.id) + '.ass')
     new_file = None
+    link = None
     try:
-        if custom_name:
-            # Ensure it has an extension, if not use original's
-            if not os.path.splitext(custom_name)[1]:
-                custom_name += os.path.splitext(filepath)[1]
-            # Replace filepath to use custom name for output base
-            # Note: handle_encode/encode usually derive output name from input filepath
-            # We can create a temp copy or just pass custom_name to encode()
-            pass
-
         if await db.get_hardsub(message.from_user.id):
-            subs = await extract_subs(filepath, msg, message.from_user.id)
+            subs = await extract_subs(filepath, edit_msg, message.from_user.id)
             if not subs:
-                await msg.edit("Something went wrong while extracting the subtitles!")
+                await edit_msg.edit("Something went wrong while extracting the subtitles!")
                 return
             # Move subs to expected location if it was from existing subs
             if subs != sub_path and os.path.exists(subs):
                 os.rename(subs, sub_path)
 
-        new_file, error_log = await encode(filepath, message, msg, audio_map=audio_map, quality=quality, custom_name=custom_name)
+        new_file, error_log = await encode(filepath, message, edit_msg, audio_map=audio_map, quality=quality, custom_name=custom_name)
         if new_file:
             # 1MB = 1048576 bytes
             if os.path.getsize(new_file) < 1048576:
                 LOGGER.error(f"Encoded file is too small ({os.path.getsize(new_file)} bytes). FFmpeg likely failed.")
-                error_file = f"ffmpeg_error_{msg.id}.txt"
+                error_file = f"ffmpeg_error_{edit_msg.id}.txt"
                 with open(error_file, 'w', encoding='utf-8') as f:
                     f.write(error_log or "Unknown FFmpeg error")
                 await message.reply_document(error_file, caption="FFmpeg error log (Output file < 1MB)")
@@ -77,23 +68,19 @@ async def handle_encode(filepath, message, msg, audio_map=None, quality=None, cu
                 if os.path.exists(new_file):
                     os.remove(new_file)
                 new_file = None
-                link = None
             else:
-                await msg.edit("<code>Video Encoded, getting metadata...</code>")
+                await edit_msg.edit("<code>Video Encoded, getting metadata...</code>")
                 try:
-                    link = await upload_worker(new_file, message, msg)
-                    # No extra success notification as per requirement
+                    link = await upload_worker(new_file, message, edit_msg)
                 except Exception as e:
-                    await msg.edit(f"Error while uploading: {e}")
-                    link = None
+                    await edit_msg.edit(f"Error while uploading: {e}")
         else:
-            error_file = f"ffmpeg_error_{msg.id}.txt"
+            error_file = f"ffmpeg_error_{edit_msg.id}.txt"
             with open(error_file, 'w', encoding='utf-8-sig') as f:
                 f.write(error_log or "Something went wrong during encoding.")
             await message.reply_document(error_file, caption="Something went wrong while encoding your file.")
             if os.path.exists(error_file):
                 os.remove(error_file)
-            link = None
         return link
     finally:
         # Robust cleanup
@@ -108,7 +95,7 @@ async def handle_encode(filepath, message, msg, audio_map=None, quality=None, cu
             except: pass
 
 
-async def handle_interactive_encode(video_path, sub_path, message, msg, mode, quality=None):
+async def handle_interactive_encode(video_path, sub_path, message, edit_msg, mode, quality=None):
     from .encoding import encode, hard_sub, soft_code
     from .uploads import upload_worker
 
@@ -127,11 +114,11 @@ async def handle_interactive_encode(video_path, sub_path, message, msg, mode, qu
     error_log = None
     try:
         if mode == 'encode':
-            new_file, error_log = await encode(video_path, message, msg, quality=quality)
+            new_file, error_log = await encode(video_path, message, edit_msg, quality=quality)
         elif mode == 'hard_sub':
-            new_file, error_log = await hard_sub(video_path, sub_path, message, msg, quality=quality)
+            new_file, error_log = await hard_sub(video_path, sub_path, message, edit_msg, quality=quality)
         elif mode == 'soft_code':
-            new_file, error_log = await soft_code(video_path, sub_path, message, msg, quality=quality)
+            new_file, error_log = await soft_code(video_path, sub_path, message, edit_msg, quality=quality)
         else:
             new_file = None
 
@@ -139,7 +126,7 @@ async def handle_interactive_encode(video_path, sub_path, message, msg, mode, qu
             # 1MB = 1048576 bytes
             if os.path.getsize(new_file) < 1048576:
                 LOGGER.error(f"Processed file is too small ({os.path.getsize(new_file)} bytes). FFmpeg likely failed.")
-                error_file = f"ffmpeg_error_{msg.id}.txt"
+                error_file = f"ffmpeg_error_{edit_msg.id}.txt"
                 with open(error_file, 'w', encoding='utf-8-sig') as f:
                     f.write(error_log or "Unknown FFmpeg error")
                 await message.reply_document(error_file, caption="FFmpeg error log (Output file < 1MB)")
@@ -149,14 +136,13 @@ async def handle_interactive_encode(video_path, sub_path, message, msg, mode, qu
                     os.remove(new_file)
                 new_file = None
             else:
-                await msg.edit("<code>Process Completed, getting metadata...</code>")
+                await edit_msg.edit("<code>Process Completed, getting metadata...</code>")
                 try:
-                    link = await upload_worker(new_file, message, msg)
-                    # No extra success notification as per requirement
+                    await upload_worker(new_file, message, edit_msg)
                 except Exception as e:
-                    await msg.edit(f"Error while uploading: {e}")
+                    await edit_msg.edit(f"Error while uploading: {e}")
         else:
-            error_file = f"ffmpeg_error_{msg.id}.txt"
+            error_file = f"ffmpeg_error_{edit_msg.id}.txt"
             with open(error_file, 'w', encoding='utf-8-sig') as f:
                 f.write(error_log or "Something went wrong during processing.")
             await message.reply_document(error_file, caption="Something went wrong while processing your file.")
@@ -236,29 +222,35 @@ async def on_task_complete():
         await handle_tasks(message, 'tg')
 
 
-async def handle_tasks(message, mode, custom_name=None):
+async def handle_tasks(message, mode, msg=None, custom_name=None):
     try:
-        msg = await message.reply_text("<b>💠 Downloading...</b>")
-        if mode == 'tg':
-            await tg_task(message, msg)
-        elif mode in ['480p', '720p', '1080p']:
-            await tg_task(message, msg, quality=mode, custom_name=custom_name)
-        elif mode == 'url':
-            await url_task(message, msg)
-        elif mode == 'af':
-            await af_task(message, msg)
-        elif mode == 'sub_tg':
-            await sub_tg_task(message, msg)
-        elif mode == 'sub_url':
-            await sub_url_task(message, msg)
-        elif mode in ['encode', 'hard_sub', 'soft_code']:
-            await interactive_task(message, msg, mode)
+        if msg:
+            edit_msg = msg
+            await edit_msg.edit("<b>💠 Downloading...</b>")
         else:
-            await batch_task(message, msg)
+            edit_msg = await message.reply_text("<b>💠 Downloading...</b>")
+
+        if mode == 'tg':
+            await tg_task(message, edit_msg)
+        elif mode in ['480p', '720p', '1080p']:
+            await tg_task(message, edit_msg, quality=mode, custom_name=custom_name)
+        elif mode == 'url':
+            await url_task(message, edit_msg)
+        elif mode == 'af':
+            await af_task(message, edit_msg)
+        elif mode == 'sub_tg':
+            await sub_tg_task(message, edit_msg)
+        elif mode == 'sub_url':
+            await sub_url_task(message, edit_msg)
+        elif mode in ['encode', 'hard_sub', 'soft_code']:
+            await interactive_task(message, edit_msg, mode)
+        else:
+            await batch_task(message, edit_msg)
     except IndexError:
         return
     except MessageIdInvalid:
-        await edit_msg(msg, text='Download Cancelled!')
+        try: await edit_msg.edit(text='Download Cancelled!')
+        except: pass
     except FileNotFoundError:
         LOGGER.error('[FileNotFoundError]: Maybe due to cancel, hmm')
         import traceback
@@ -271,67 +263,65 @@ async def handle_tasks(message, mode, custom_name=None):
         await on_task_complete()
 
 
-async def tg_task(message, msg, quality=None, custom_name=None):
-    filepath = await handle_tg_down(message, msg)
+async def tg_task(message, edit_msg, quality=None, custom_name=None):
+    filepath = await handle_tg_down(message, edit_msg)
     if not filepath:
-        await edit_msg(msg, text="Download failed or no file found.")
+        await edit_msg.edit(text="Download failed or no file found.")
         return
-    await edit_msg(msg, text='Encoding...')
-    await handle_encode(filepath, message, msg, quality=quality, custom_name=custom_name)
+    await edit_msg.edit(text='Encoding...')
+    await handle_encode(filepath, message, edit_msg, quality=quality, custom_name=custom_name)
 
 
-async def sub_tg_task(message, msg):
-    filepath = await handle_tg_down(message, msg)
+async def sub_tg_task(message, edit_msg):
+    filepath = await handle_tg_down(message, edit_msg)
     if not filepath:
-        await edit_msg(msg, text="Download failed or no file found.")
+        await edit_msg.edit(text="Download failed or no file found.")
         return
-    await handle_sub_extract(filepath, message, msg)
+    await handle_sub_extract(filepath, message, edit_msg)
 
 
-async def sub_url_task(message, msg):
-    filepath = await handle_download_url(message, msg, False)
+async def sub_url_task(message, edit_msg):
+    filepath = await handle_download_url(message, edit_msg, False)
     if not filepath:
         return
-    await handle_sub_extract(filepath, message, msg)
+    await handle_sub_extract(filepath, message, edit_msg)
 
 
-async def interactive_task(message, msg, mode):
-    from .common import edit_msg
+async def interactive_task(message, edit_msg, mode):
     # message here is the video message which has subtitle_msg attached
     subtitle_msg = message.subtitle_msg
 
     # Download subtitle
-    await edit_msg(msg, text="Downloading Subtitle...")
+    await edit_msg.edit(text="Downloading Subtitle...")
     sub_path = await subtitle_msg.download(file_name=os.path.join(download_dir, ""))
 
     # Download video
-    await edit_msg(msg, text="Downloading Video...")
-    video_path = await handle_tg_down(message, msg)
+    await edit_msg.edit(text="Downloading Video...")
+    video_path = await handle_tg_down(message, edit_msg)
 
     if not video_path or not sub_path:
-        await edit_msg(msg, text="Download failed.")
+        await edit_msg.edit(text="Download failed.")
         return
 
-    await edit_msg(msg, text="Processing...")
-    await handle_interactive_encode(video_path, sub_path, message, msg, mode)
+    await edit_msg.edit(text="Processing...")
+    await handle_interactive_encode(video_path, sub_path, message, edit_msg, mode)
 
 
-async def af_task(message, msg):
-    from .common import edit_msg
+async def af_task(message, edit_msg):
     from .encoding import get_media_streams
-    filepath = await handle_tg_down(message, msg)
+    filepath = await handle_tg_down(message, edit_msg)
     if not filepath:
-        await edit_msg(msg, text="Download failed or no file found.")
+        await edit_msg.edit(text="Download failed or no file found.")
         return
 
     # Probe for streams
     streams = get_media_streams(filepath)
     if not streams:
-         await edit_msg(msg, text="Could not retrieve media streams.")
+         await edit_msg.edit(text="Could not retrieve media streams.")
          return
 
     selector = AudioSelect(message._client, message)
-    await msg.delete() # Delete the downloading message as AudioSelect will send its own interface
+    await edit_msg.delete() # Delete the downloading message as AudioSelect will send its own interface
 
     # AudioSelect expects streams list
     audio_map, _ = await selector.get_buttons(streams)
@@ -341,52 +331,51 @@ async def af_task(message, msg):
         return
 
     # Proceed to encode with the new map
-    msg = await message.reply("Encoding with new audio arrangement...")
-    await handle_encode(filepath, message, msg, audio_map)
+    edit_msg = await message.reply("Encoding with new audio arrangement...")
+    await handle_encode(filepath, message, edit_msg, audio_map)
 
 
-async def url_task(message, msg):
-    from .common import edit_msg
-    filepath = await handle_download_url(message, msg, False)
+async def url_task(message, edit_msg):
+    filepath = await handle_download_url(message, edit_msg, False)
     if not filepath:
-        # Error handled in handle_download_url logic or implicit failure
         return
-    await edit_msg(msg, text="Encoding...")
-    await handle_encode(filepath, message, msg)
+    await edit_msg.edit(text="Encoding...")
+    await handle_encode(filepath, message, edit_msg)
 
 
-async def batch_task(message, msg):
-    from .common import edit_msg
+async def batch_task(message, edit_msg):
+    from .helper import get_zip_folder, handle_extract
     if message.reply_to_message:
-        filepath = await handle_tg_down(message, msg, mode='reply')
+        filepath = await handle_tg_down(message, edit_msg, mode='reply')
     else:
-        filepath = await handle_download_url(message, msg, True)
+        filepath = await handle_download_url(message, edit_msg, True)
     if not filepath:
-        await edit_msg(msg, text='NO ZIP FOUND!')
+        await edit_msg.edit(text='NO ZIP FOUND!')
+        return
     if os.path.isfile(filepath):
         path = await get_zip_folder(filepath)
         await handle_extract(filepath)
         if not os.path.isdir(path):
-            await edit_msg(msg, text='extract failed!')
+            await edit_msg.edit(text='extract failed!')
             return
         filepath = path
     if os.path.isdir(filepath):
         path = filepath
     else:
-        await edit_msg(msg, text='Something went wrong, hell!')
+        await edit_msg.edit(text='Something went wrong, hell!')
         return
-    await edit_msg(msg, text='<b>📕 Encode Started!</b>')
+    await edit_msg.edit(text='<b>📕 Encode Started!</b>')
     sentfiles = []
     # Encode
     for dirpath, subdir, files_ in sorted(os.walk(path)):
         for i in sorted(files_):
             msg_ = await message.reply('Encoding')
             filepath = os.path.join(dirpath, i)
-            await edit_msg(msg, text='Encode Started!\nEncoding: <code>{}</code>'.format(i))
+            await edit_msg.edit(text='Encode Started!\nEncoding: <code>{}</code>'.format(i))
             try:
                 url = await handle_encode(filepath, message, msg_)
             except Exception as e:
-                await edit_msg(msg_, text=str(e) + '\n\n Continuing...')
+                await msg_.edit(text=str(e) + '\n\n Continuing...')
                 continue
             else:
                 sentfiles.append((i, url))
@@ -416,12 +405,11 @@ async def batch_task(message, msg):
     thing = await message.reply_text(text, quote=quote, disable_web_page_preview=True)
     if first_index is None:
         first_index = thing
-    await edit_msg(msg, text='Encoded Files! Links: {}'.format(first_index.link), disable_web_page_preview=True)
+    await edit_msg.edit(text='Encoded Files! Links: {}'.format(first_index.link), disable_web_page_preview=True)
 
 
-async def handle_download_url(message, msg, batch):
+async def handle_download_url(message, edit_msg, batch):
     from .helper import handle_url
-    from .common import edit_msg
     from .uploads.drive import _get_file_id
     from .uploads.drive.download import Downloader
     from .direct_link_generator import direct_link_generator
@@ -458,15 +446,14 @@ async def handle_download_url(message, msg, batch):
     path = os.path.join(download_dir, custom_file_name)
     filepath = path
     if 'drive.google.com' in url:
-        await n.handle_drive(msg, url, custom_file_name, batch)
+        await n.handle_drive(edit_msg, url, custom_file_name, batch)
     else:
-        await handle_url(url, filepath, msg)
+        await handle_url(url, filepath, edit_msg)
     return filepath
 
 
-async def handle_tg_down(message, msg, mode='no_reply'):
+async def handle_tg_down(message, edit_msg, mode='no_reply'):
     from .helper import get_zip_folder, handle_extract
-    from .common import edit_msg
     from .display_progress import progress_for_pyrogram
     c_time = time.time()
 
@@ -487,6 +474,6 @@ async def handle_tg_down(message, msg, mode='no_reply'):
     path = await target_msg.download(
         file_name=os.path.join(download_dir, ""),
         progress=progress_for_pyrogram,
-        progress_args=("Downloading...", msg, c_time))
+        progress_args=("Downloading...", edit_msg, c_time))
 
     return path

@@ -8,13 +8,20 @@ from ..utils.database.add_user import AddUserToDatabase
 from ..utils.helper import check_chat
 
 async def get_metadata_menu(user_id):
-    # Requirement: "Action: Clicking this must trigger the exact response of the /metadata command."
-    # AND "Updated Help & Metadata Content: When the Metadata or Help info is displayed, use this exact formatting: [Guide text]"
+    is_on = await db.get_metadata_on(user_id)
+
+    if is_on:
+        on_text, off_text = "ON ✅", "ON"
+    else:
+        on_text, off_text = "OFF", "OFF ✅"
 
     buttons = [
         [
-            InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
-            InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+            InlineKeyboardButton(on_text, callback_data="metadata_on"),
+            InlineKeyboardButton(off_text, callback_data="metadata_off")
+        ],
+        [
+            InlineKeyboardButton("CLOSE ✖️", callback_data="close_btn")
         ]
     ]
     return METADATA_HELP_TEXT, InlineKeyboardMarkup(buttons)
