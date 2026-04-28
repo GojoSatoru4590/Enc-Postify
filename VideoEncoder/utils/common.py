@@ -55,10 +55,12 @@ start_but = InlineKeyboardMarkup([
 
 async def edit_msg(message, text=None, **kwargs):
     try:
+        if 'media' in kwargs:
+            return await message.edit_media(**kwargs)
         if text:
             return await message.edit_text(text, **kwargs)
         if 'caption' in kwargs:
             return await message.edit_caption(**kwargs)
         return await message.edit(**kwargs)
-    except:
-        pass
+    except Exception as e:
+        LOGGER.error(f"Error in edit_msg: {e}")
