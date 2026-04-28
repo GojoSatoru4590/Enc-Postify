@@ -11,6 +11,11 @@ from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
+try:
+    from deepseek import DeepSeekClient
+except ImportError:
+    DeepSeekClient = None
+
 ANALYZER_PROMPT = (
     "Analyze the raw English subtitle lines and context. "
     "Identify the speaker's gender and the social relationship/hierarchy between characters.\n"
@@ -59,27 +64,33 @@ TRANSLATOR_PROMPT = (
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
-TRANSLATE_TEXT = """<blockquote>✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨
+TRANSLATE_TEXT = """<blockquote>✨ ᴅᴜᴀʟ-ᴇɴɢɪɴᴇ ᴛʀᴀɴsʟᴀᴛɪᴏɴ sʏsᴛᴇᴍ ✨
 ᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.</blockquote>
 <blockquote expandable>ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ - sᴛᴇᴘ ʙʏ sᴛᴇᴘ ɢᴜɪᴅᴇ:
-➼ sᴛᴇᴘ 1: ɢᴇᴛ ɢʀᴏǫ ᴋᴇʏ | <a href='https://console.groq.com/keys?hl=en-IN'>ᴄʟɪᴄᴋ ʜᴇʀᴇ</a> ᴛᴏ ᴄʀᴇᴀᴛᴇ ʏᴏᴜʀ ᴀᴘɪ ᴋᴇʏ.
+➼ sᴛᴇᴘ 1: ɢᴇᴛ ᴋᴇʏs | ɢʀᴏǫ ᴏʀ ᴅᴇᴇᴘsᴇᴇᴋ ᴛᴏᴋᴇɴs.
 ➼ sᴛᴇᴘ 2: ᴜᴘʟᴏᴀᴅ ʏᴏᴜʀ ғɪʟᴇ
 sᴇɴᴅ ʏᴏᴜʀ .ᴀss ᴏʀ sᴜʙᴛɪᴛʟᴇ ғɪʟᴇ ᴅɪʀᴇᴄᴛʟʏ ᴛᴏ ᴛʜᴇ ʙᴏᴛ.
 ➼ sᴛᴇᴘ 3: sᴇʟᴇᴄᴛ ᴛʜᴇ ᴇɴɢɪɴᴇ
-ᴄʜᴏᴏsᴇ ᴛʜᴇ ʜɪɢʜ-sᴛᴀʙɪʟɪᴛʏ ɢʀᴏǫ ᴇɴɢɪɴᴇ ғᴏʀ ʟɪɢʜᴛɴɪɴɢ-ғᴀsᴛ ʀᴇsᴜʟᴛs.
+ᴄʜᴏᴏsᴇ ʙᴇᴛᴡᴇᴇɴ ɢʀᴏǫ 🚀 ᴏʀ ᴅᴇᴇᴘsᴇᴇᴋ 🐋 ғᴏʀ ᴘʀᴇᴍɪᴜᴍ sᴜʙs.
 ➼ sᴛᴇᴘ 4: ᴡᴀɪᴛ ғᴏʀ ᴘʀᴏᴄᴇssɪɴɢ
-ᴛʜᴇ ʙᴏᴛ ᴡɪʟʟ sᴘʟɪᴛ ʏᴏᴜʀ ғɪʟᴇ ɪɴᴛᴏ ᴍɪᴄʀᴏ-ᴄʜᴜɴᴋs ᴛᴏ ᴇɴsᴜʀᴇ ʜɪɢʜ-ǫᴜᴀʟɪᴛʏ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.</blockquote>
-ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ ᴜsᴇs ᴀɴ ᴏᴘᴛɪᴍɪᴢᴇᴅ ɢʀᴏǫ-ᴏɴʟʏ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ ғᴏʀ 100% sᴛᴀʙɪʟɪᴛʏ!"""
+ᴛʜᴇ ʙᴏᴛ ᴡɪʟʟ sᴘʟɪᴛ ʏᴏᴜʀ ғɪʟᴇ ɪɴᴛᴏ ᴍɪᴄʀᴏ-ᴄʜᴜɴᴋs ғᴏʀ ǫᴜᴀʟɪᴛʏ.</blockquote>
+ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ sᴜᴘᴘᴏʀᴛs ᴅᴜᴀʟ-ᴇɴɢɪɴᴇ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ (ɢʀᴏǫ + ᴅᴇᴇᴘsᴇᴇᴋ)!"""
 
 # Temporary storage for file metadata linked to message ID
 translation_data = {}
 
-TRANSLATE_BUTTONS = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 𝟽𝟶ʙ 🚀", callback_data="trans_llama33_groq"),
-        InlineKeyboardButton("❌ Cancel", callback_data="close_btn")
-    ]
-])
+async def get_translate_buttons(user_id):
+    engine = await db.get_translation_engine(user_id)
+    engine_display = "Grok 𝕏" if engine == "groq" else "DeepSeek 🐋"
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(f"🤖 Model: {engine_display}", callback_data="toggle_trans_engine")
+        ],
+        [
+            InlineKeyboardButton("🚀 Start Translation", callback_data="start_trans_process"),
+            InlineKeyboardButton("❌ Close Menu", callback_data="close_btn")
+        ]
+    ])
 
 def parse_srt(content):
     content = content.replace('\r\n', '\n')
@@ -188,7 +199,38 @@ async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
         except Exception as e:
             return f"❌ Groq Error: {str(e)}"
 
-async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
+async def call_deepseek(system_prompt, user_content, api_key, temperature=0.2):
+    if not DeepSeekClient:
+        return "❌ DeepSeekClient not installed"
+    if not user_content.strip(): return user_content
+
+    try:
+        client = DeepSeekClient(api_key=api_key)
+        # Inject all rules into prompt as requested
+        full_prompt = f"{system_prompt}\n\nTranslate this:\n{user_content}"
+
+        # Wrapping in run_in_executor if it's not async-friendly,
+        # but the request implies direct usage.
+        # DeepSeek 0.1.9 logic provided (Run in thread to avoid blocking)
+        result = await asyncio.to_thread(
+            client.chat,
+            prompt=full_prompt,
+            model="default",
+            thinking=True
+        )
+        translation = result.response
+
+        if translation.strip() == user_content.strip():
+            return "RETRY_REQUIRED"
+        return translation
+    except Exception as e:
+        # Check for rate limit specifically if possible, otherwise generic 120s handling in loop
+        error_msg = str(e)
+        if "rate" in error_msg.lower() or "limit" in error_msg.lower():
+             return "429"
+        return f"❌ DeepSeek Error: {error_msg}"
+
+async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine="groq", deepseek_token=None):
     translated_texts = []
     idx = 0
     trans_key_idx = 1 # Start rotation from Key 2 (index 1)
@@ -218,43 +260,69 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                 if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
                     analysis_res = '{"gender": "neutral", "hierarchy": "friends", "tone": "casual", "context": "general anime scene"}'
 
-            # Phase 2: The Translator (Staggered Rotation: Keys 2-5)
-            keys_tried = 0
-            while keys_tried < 4:
-                api_key_trans = api_pool[trans_key_idx]
-                await edit_msg(status_msg, f"⏳ [𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Translating chunk {idx+1}/{len(chunk_queue)} (Temp: {temp:.1f})...")
-                res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", api_key_trans, temperature=temp)
+            # Phase 2: The Translator
+            if engine == "deepseek":
+                await edit_msg(status_msg, f"⏳ [𝐃𝐞𝐞𝐩𝐒𝐞𝐞𝐤] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+                res = await call_deepseek(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", deepseek_token, temperature=temp)
 
-                if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
-                    await asyncio.sleep(0.5) # Immediate Rotation
-                    trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
-                    keys_tried += 1
+                if res == "429":
+                    await edit_msg(status_msg, f"⚠️ DeepSeek Rate Limited. Waiting 120s...")
+                    await asyncio.sleep(120)
+                    continue # Retry same chunk
+                elif res in ["RETRY_REQUIRED", "503"] or res.startswith("❌"):
+                    await asyncio.sleep(5)
+                    continue
                 else:
                     # Extraction and Verification
                     res_lines = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
                     if len(res_lines) != len(original_lines):
                         LOGGER.warning(f"Line count mismatch in chunk {idx+1}: Expected {len(original_lines)}, got {len(res_lines)}. Retrying...")
                         temp = min(temp + 0.1, 0.5)
+                        await asyncio.sleep(2)
+                        continue
+
+                    for trans_line in res_lines:
+                        clean_line = re.sub(r'^\[.*?\]:\s*', '', trans_line.strip()).strip()
+                        translated_texts.append(clean_line)
+                    success = True
+            else:
+                # Groq Logic (Existing)
+                keys_tried = 0
+                while keys_tried < 4:
+                    api_key_trans = api_pool[trans_key_idx]
+                    await edit_msg(status_msg, f"⏳ [𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Translating chunk {idx+1}/{len(chunk_queue)} (Temp: {temp:.1f})...")
+                    res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", api_key_trans, temperature=temp)
+
+                    if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
                         await asyncio.sleep(0.5) # Immediate Rotation
                         trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
                         keys_tried += 1
-                        continue
-
-                    # Success
-                    if trans_key_idx == 4: # Key 5
-                        await edit_msg(status_msg, f"✅ Chunk {idx+1} translated. Taking 10s pause...")
-                        await asyncio.sleep(10)
                     else:
-                        await asyncio.sleep(2)
+                        # Extraction and Verification
+                        res_lines = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
+                        if len(res_lines) != len(original_lines):
+                            LOGGER.warning(f"Line count mismatch in chunk {idx+1}: Expected {len(original_lines)}, got {len(res_lines)}. Retrying...")
+                            temp = min(temp + 0.1, 0.5)
+                            await asyncio.sleep(0.5) # Immediate Rotation
+                            trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
+                            keys_tried += 1
+                            continue
 
-                    for trans_line in res_lines:
-                        # Clean up any remaining speaker prefix that AI might have included inside <t>
-                        clean_line = re.sub(r'^\[.*?\]:\s*', '', trans_line.strip()).strip()
-                        translated_texts.append(clean_line)
+                        # Success
+                        if trans_key_idx == 4: # Key 5
+                            await edit_msg(status_msg, f"✅ Chunk {idx+1} translated. Taking 10s pause...")
+                            await asyncio.sleep(10)
+                        else:
+                            await asyncio.sleep(2)
 
-                    trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
-                    success = True
-                    break
+                        for trans_line in res_lines:
+                            # Clean up any remaining speaker prefix that AI might have included inside <t>
+                            clean_line = re.sub(r'^\[.*?\]:\s*', '', trans_line.strip()).strip()
+                            translated_texts.append(clean_line)
+
+                        trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
+                        success = True
+                        break
 
             if not success:
                 full_cycle_count += 1
@@ -289,10 +357,11 @@ async def translate_cmd_handler(bot: Client, message: Message):
         await message.reply_text("❌ Please reply to a valid video, .ass, or .srt file.")
         return
 
+    reply_markup = await get_translate_buttons(user_id)
     sent_msg = await message.reply_photo(
         photo=TRANSLATE_PIC,
         caption=TRANSLATE_TEXT,
-        reply_markup=TRANSLATE_BUTTONS,
+        reply_markup=reply_markup,
         has_spoiler=True
     )
 
@@ -315,6 +384,34 @@ async def set_groq_handler(bot: Client, message: Message):
     await db.add_groq_api_key(message.from_user.id, api_key)
     await message.reply_text("✅ Groq API Key added to pool successfully!")
 
+@Client.on_message(filters.command("set_deepseek_api") & filters.private)
+async def set_deepseek_handler(bot: Client, message: Message):
+    if len(message.command) < 2:
+        await message.reply_text("❌ Usage: /set_deepseek_api YOUR_TOKEN_HERE")
+        return
+    token = message.command[1]
+
+    # Save to /data/config.json as requested
+    try:
+        os.makedirs("/data", exist_ok=True)
+        config_path = "/data/config.json"
+        config = {}
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r") as f:
+                    config = json.load(f)
+            except:
+                pass
+        config["deepseek_token"] = token
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=4)
+    except Exception as e:
+        LOGGER.error(f"Error saving to /data/config.json: {e}")
+
+    # Also save to DB for per-user access
+    await db.set_deepseek_token(message.from_user.id, token)
+    await message.reply_text("✅ DeepSeek API Token saved successfully!")
+
 @Client.on_message(filters.command("view_api") & filters.private)
 async def view_api_handler(bot: Client, message: Message):
     api_pool = await db.get_groq_api_pool(message.from_user.id)
@@ -335,17 +432,31 @@ async def clear_api_handler(bot: Client, message: Message):
     await message.reply_text("✅ All Groq API Keys cleared from pool!")
 
 
-async def process_translation(bot, cb, model_type, model_name):
+async def process_translation(bot, cb, model_type=None, model_name=None):
     # This will be called from callbacks_.py
     user_id = cb.from_user.id
 
-    if model_type == "groq":
+    engine = await db.get_translation_engine(user_id)
+    deepseek_token = None
+    api_pool = None
+
+    if engine == "groq":
         api_pool = await db.get_groq_api_pool(user_id)
         if not api_pool:
             await cb.answer("❌ Groq API Pool is Empty!", show_alert=True)
             return
         if len(api_pool) < 5:
             await cb.answer("❌ You need at least 5 Groq API Keys for Studio Flow!", show_alert=True)
+            return
+    else:
+        deepseek_token = await db.get_deepseek_token(user_id)
+        if not deepseek_token:
+            await cb.answer("❌ DeepSeek API Token not set! Use /set_deepseek_api", show_alert=True)
+            return
+        # DeepSeek still needs Analyst (Groq Key 1)
+        api_pool = await db.get_groq_api_pool(user_id)
+        if not api_pool:
+            await cb.answer("❌ DeepSeek Engine needs at least 1 Groq Key for Analysis!", show_alert=True)
             return
 
     unique_key = f"{cb.message.chat.id}_{cb.message.id}"
@@ -428,7 +539,7 @@ async def process_translation(bot, cb, model_type, model_name):
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
 
-            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg)
+            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token)
             if err:
                 await edit_msg(status_msg, err)
                 return
@@ -467,7 +578,7 @@ async def process_translation(bot, cb, model_type, model_name):
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
 
-            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg)
+            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token)
             if err:
                 await edit_msg(status_msg, err)
                 return

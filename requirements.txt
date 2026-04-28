@@ -15,6 +15,9 @@ dnspython
 motor
 
 # Others
+deepseek
+wasmtime
+numpy
 psutil
 js2py
 cloudscraper

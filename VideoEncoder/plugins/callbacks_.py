@@ -186,6 +186,20 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
             from .translator import process_translation
             await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
 
+        elif data == "toggle_trans_engine":
+            from ..utils.database.access_db import db
+            from .translator import get_translate_buttons, TRANSLATE_TEXT
+            from ..utils.common import edit_msg
+            current_engine = await db.get_translation_engine(user_id)
+            new_engine = "deepseek" if current_engine == "groq" else "groq"
+            await db.set_translation_engine(user_id, new_engine)
+            reply_markup = await get_translate_buttons(user_id)
+            await edit_msg(cb.message, caption=TRANSLATE_TEXT, reply_markup=reply_markup)
+
+        elif data == "start_trans_process":
+            from .translator import process_translation
+            await process_translation(bot, cb)
+
         # 9. Cancel Handlers
         elif data.startswith("cancel"):
             from ..utils.common import edit_msg
