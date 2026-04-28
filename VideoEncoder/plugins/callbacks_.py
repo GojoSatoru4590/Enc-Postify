@@ -13,7 +13,8 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
 
     data = cb.data
     user_id = cb.from_user.id
-    print(f"DEBUG: Received callback data: {data}")
+    from .. import LOGGER
+    LOGGER.info(f"Executing logic for: {data}")
 
     try:
         # 1. Back to Start / Home
@@ -40,7 +41,7 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
             await cb.message.delete()
 
         # 3. Metadata Start / Home
-        elif data == "metadata_start":
+        elif data in ["metadata_start", "OpenSettings"]:
             from .metadata_plugin import update_metadata_msg
             await update_metadata_msg(cb)
 
@@ -49,13 +50,26 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
             from ..utils.database.access_db import db
             from .metadata_plugin import update_metadata_msg
             await db.set_metadata_on(user_id, True)
+            await db.set_metadata_w(user_id, True)
             await update_metadata_msg(cb)
 
         elif data in ["meta_off", "metadata_off"]:
             from ..utils.database.access_db import db
             from .metadata_plugin import update_metadata_msg
             await db.set_metadata_on(user_id, False)
+            await db.set_metadata_w(user_id, False)
             await update_metadata_msg(cb)
+
+        elif data == "help_callback":
+            from ..utils.common import HELP_TEXT, edit_msg
+            from .start import START_PIC
+            buttons = [
+                [
+                    InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+                    InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+                ]
+            ]
+            await edit_msg(cb.message, media=InputMediaPhoto(START_PIC, caption=HELP_TEXT, has_spoiler=True), reply_markup=InlineKeyboardMarkup(buttons))
 
         elif data in ["metadata_how_to", "meta_how_to"]:
             from ..utils.common import edit_msg
