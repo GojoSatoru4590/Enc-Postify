@@ -587,27 +587,14 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
             audio_opts = '-c:a copy'
 
         if audio_map:
-            # If audio_map is provided (e.g. [0:1, 0:2]), we use it to map audio streams.
-            # We need to make sure we map all audio streams in the desired order.
-            # The audio_opts above sets the codec for all audio streams.
-            # We need to construct the map part.
-            # Note: The previous code had `-map 0:a?` attached to audio_opts.
-            # If we have specific mapping, we shouldn't use generic `-map 0:a?`.
-
-            # The `audio_map` contains indices of audio streams in the original file.
-            # e.g. [1, 2] means map 0:1 then map 0:2.
-
-            map_opts = ""
-            for idx in audio_map:
-                map_opts += f" -map 0:{idx}"
-
-            # Explicitly set the default disposition for the first audio stream in the new order
-            # This ensures the first audio track in the list is the default one
-            disposition_opts = " -disposition:a:0 default"
-
-            audio_opts = f"{audio_opts} {map_opts} {disposition_opts}"
+            # Codec selection is already done above.
+            # Mapping is handled later in the command construction.
+            pass
         else:
-             audio_opts += " -map 0:a:0"
+             # This will be used in the command construction
+             # Note: if it is -c:a copy, we might not want to map 0:a:0 only.
+             # But the current logic seems to favor it.
+             pass
 
 
     # Audio Channel
@@ -658,15 +645,15 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     if thumb_path:
         command.extend(['-i', thumb_path])
     if has_watermark:
-        command.extend(['-i', watermark_file])
+        command.extend(['-loop', '1', '-i', watermark_file])
 
     # Video Filter Logic
     if has_watermark:
         w_idx = 2 if thumb_path else 1
         if vf_list:
-            filter_str = f"[0:v]{','.join(vf_list)}[vbase];[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[vbase][ck]overlay=W-w-10:10[v_out]"
+            filter_str = f"[0:v]{','.join(vf_list)}[vbase];[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[vbase][ck]overlay=W-w-10:10:shortest=1[v_out]"
         else:
-            filter_str = f"[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[0:v][ck]overlay=W-w-10:10[v_out]"
+            filter_str = f"[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[0:v][ck]overlay=W-w-10:10:shortest=1[v_out]"
         command.extend(['-filter_complex', filter_str])
         video_map_arg = ['-map', '[v_out]']
     elif vf_list:
@@ -702,7 +689,12 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
             command.extend(['-map', f'0:{idx}'])
         command.extend(['-disposition:a:0', 'default'])
     else:
-        command.extend(['-map', '0:a?'])
+        # Check if user selected "copy" or specific codec
+        if '-c:a copy' in audio_opts:
+             command.extend(['-map', '0:a?'])
+        else:
+             # If re-encoding and no map provided, default to first audio stream
+             command.extend(['-map', '0:a:0'])
 
     # Subtitle Mapping
     if not h:
@@ -891,12 +883,12 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         thumb_input_index = -1
 
     if has_watermark:
-        command.extend(['-i', watermark_file])
+        command.extend(['-loop', '1', '-i', watermark_file])
         watermark_input_index = 2 if thumb_path else 1
         if vf_list:
-            filter_str = f"[0:v]{','.join(vf_list)}[vbase];[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[vbase][ck]overlay=W-w-10:10[v_out]"
+            filter_str = f"[0:v]{','.join(vf_list)}[vbase];[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[vbase][ck]overlay=W-w-10:10:shortest=1[v_out]"
         else:
-            filter_str = f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[0:v][ck]overlay=W-w-10:10[v_out]"
+            filter_str = f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[0:v][ck]overlay=W-w-10:10:shortest=1[v_out]"
         command.extend(['-filter_complex', filter_str])
         video_map_arg = ['-map', '[v_out]']
     else:
@@ -1028,7 +1020,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             thumb_input_index = -1
 
         if has_watermark:
-            command.extend(['-i', watermark_file])
+            command.extend(['-loop', '1', '-i', watermark_file])
             watermark_input_index = 3 if thumb_path else 2
         else:
             watermark_input_index = -1
@@ -1038,10 +1030,10 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             if vf_list:
                 filter_str += f"[0:v:0]{','.join(vf_list)}[vbase];"
                 filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];"
-                filter_str += f"[vbase][ck]overlay=W-w-10:10[v_out]"
+                filter_str += f"[vbase][ck]overlay=W-w-10:10:shortest=1[v_out]"
             else:
                 filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];"
-                filter_str += f"[0:v:0][ck]overlay=W-w-10:10[v_out]"
+                filter_str += f"[0:v:0][ck]overlay=W-w-10:10:shortest=1[v_out]"
             command.extend(['-filter_complex', filter_str])
             video_map_arg = ['-map', '[v_out]']
         else:
