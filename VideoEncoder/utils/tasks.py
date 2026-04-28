@@ -161,12 +161,12 @@ async def handle_interactive_encode(video_path, sub_path, message, edit_msg, mod
             except: pass
 
 async def on_task_complete():
-    from .helper import delete_downloads
-    delete_downloads()
     if not data:
         return
     del data[0]
     if not len(data) > 0:
+        from .helper import delete_downloads
+        delete_downloads()
         return
     message = data[0]
 
@@ -268,7 +268,7 @@ async def tg_task(message, edit_msg, quality=None, custom_name=None):
     if not filepath:
         await edit_msg.edit(text="Download failed or no file found.")
         return
-    await edit_msg.edit(text='Encoding...')
+    await edit_msg.edit(text='<b>Download complete. Initializing encoder...</b>')
     await handle_encode(filepath, message, edit_msg, quality=quality, custom_name=custom_name)
 
 
@@ -303,7 +303,7 @@ async def interactive_task(message, edit_msg, mode):
         await edit_msg.edit(text="Download failed.")
         return
 
-    await edit_msg.edit(text="Processing...")
+    await edit_msg.edit(text="<b>Download complete. Initializing encoder...</b>")
     await handle_interactive_encode(video_path, sub_path, message, edit_msg, mode)
 
 
@@ -339,7 +339,7 @@ async def url_task(message, edit_msg):
     filepath = await handle_download_url(message, edit_msg, False)
     if not filepath:
         return
-    await edit_msg.edit(text="Encoding...")
+    await edit_msg.edit(text="<b>Download complete. Initializing encoder...</b>")
     await handle_encode(filepath, message, edit_msg)
 
 

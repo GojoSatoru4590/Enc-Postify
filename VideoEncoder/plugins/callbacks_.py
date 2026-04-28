@@ -205,7 +205,7 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
             from ..utils.common import edit_msg
             from .. import download_dir, sudo_users, owner, log
             if data == "cancel":
-                status_file = download_dir + "status.json"
+                status_file = os.path.join(download_dir, "status.json")
                 try:
                     with open(status_file, 'r+') as f:
                         statusMsg = json.load(f)

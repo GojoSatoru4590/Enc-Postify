@@ -11,7 +11,7 @@ async def progress_for_pyrogram(current, total, ud_type, message, start):
     from .common import edit_msg
     now = time.time()
     diff = now - start
-    if round(diff % 5.00) == 0 or current == total:
+    if round(diff % 3.00) == 0 or current == total:
         try:
             percentage = current * 100 / total
             speed = current / diff
