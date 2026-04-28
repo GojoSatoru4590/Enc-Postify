@@ -49,7 +49,9 @@ class Database:
             metadata_video="By: @Anime_Fury",
             user_font='Roboto-Bold',
             user_font_size=0,
-            groq_api_pool=[]
+            groq_api_pool=[],
+            translation_engine='groq',
+            deepseek_token=None
         )
 
     async def add_user(self, id):
@@ -500,3 +502,23 @@ class Database:
             await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'groq_api_pool': []}}, upsert=True), timeout=5.0)
         except Exception as e:
             LOGGER.error(f"Error in clear_groq_api_pool: {e}")
+
+    async def set_translation_engine(self, id, engine):
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'translation_engine': engine}}, upsert=True), timeout=5.0)
+        except Exception as e:
+            LOGGER.error(f"Error in set_translation_engine: {e}")
+
+    async def get_translation_engine(self, id):
+        user = await self._get_user(id)
+        return user.get('translation_engine', 'groq')
+
+    async def set_deepseek_token(self, id, token):
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'deepseek_token': token}}, upsert=True), timeout=5.0)
+        except Exception as e:
+            LOGGER.error(f"Error in set_deepseek_token: {e}")
+
+    async def get_deepseek_token(self, id):
+        user = await self._get_user(id)
+        return user.get('deepseek_token', None)
