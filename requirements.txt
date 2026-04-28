@@ -15,7 +15,7 @@ dnspython
 motor
 
 # Others
-deepseek
+p2d-deepseek==0.1.9
 wasmtime
 numpy
 psutil
