@@ -60,7 +60,8 @@ TRANSLATOR_PROMPT = (
     "- Output ONLY translated lines wrapped in <t> and </t> tags.\n"
     "- Match gender and hierarchy from Analysis.\n"
     "- Keep sentences short, accurate, and punchy.\n"
-    "- Ensure natural flow, avoid robotic literal translation."
+    "- Ensure natural flow, avoid robotic literal translation.\n"
+    "- Strict Rule: You must translate every single line into Hinglish. Do not summarize, do not skip any line, and do not provide any extra text or explanations. The output MUST have the exact same number of lines as the input. DO NOT remove or modify previous rules. DO NOT modify or re-translate previous lines. If there is a delay, wait, but NEVER skip."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -219,6 +220,8 @@ async def call_deepseek(system_prompt, user_content, api_key, temperature=0.2):
             thinking=True
         )
         translation = result.response
+        # Strip DeepSeek thinking tags
+        translation = re.sub(r'<think>.*?</think>', '', translation, flags=re.DOTALL).strip()
 
         if translation.strip() == user_content.strip():
             return "RETRY_REQUIRED"
@@ -266,8 +269,8 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                 res = await call_deepseek(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", deepseek_token, temperature=temp)
 
                 if res == "429":
-                    await edit_msg(status_msg, f"⚠️ DeepSeek Rate Limited. Waiting 120s...")
-                    await asyncio.sleep(120)
+                    await edit_msg(status_msg, f"⚠️ DeepSeek Rate Limited. Waiting 180s...")
+                    await asyncio.sleep(180)
                     continue # Retry same chunk
                 elif res in ["RETRY_REQUIRED", "503"] or res.startswith("❌"):
                     await asyncio.sleep(5)
@@ -326,17 +329,17 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
 
             if not success:
                 full_cycle_count += 1
-                if full_cycle_count >= 3:
-                    LOGGER.error(f"CHUNK STALL DETECTED: Chunk {idx+1} failed 3 full cycles. Content:\n{xml_chunk}")
-                    await edit_msg(status_msg, f"⚠️ Chunk {idx+1} failed 3 times. Skipping to avoid stall...")
+                if full_cycle_count >= 999:
+                    LOGGER.error(f"CHUNK STALL DETECTED: Chunk {idx+1} failed 999 full cycles. Content:\n{xml_chunk}")
+                    await edit_msg(status_msg, f"⚠️ Chunk {idx+1} failed 999 times. Skipping as last resort...")
                     # Fallback to original lines (protected but untranslated)
                     for orig in original_lines:
                         translated_texts.append(orig)
                     success = True
                     break
 
-                await edit_msg(status_msg, f"⚠️ All keys failed for chunk {idx+1}. Cycle {full_cycle_count}/3. Emergency pause 15s...")
-                await asyncio.sleep(15)
+                await edit_msg(status_msg, f"⚠️ All keys failed for chunk {idx+1}. Cycle {full_cycle_count}/999. Emergency pause 180s...")
+                await asyncio.sleep(180)
                 temp = 0.2 # Reset temp for fresh start
 
         idx += 1
