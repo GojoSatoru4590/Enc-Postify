@@ -64,6 +64,43 @@ TRANSLATOR_PROMPT = (
     "- Strict Rule: You must translate every single line into Hinglish. Do not summarize, do not skip any line, and do not provide any extra text or explanations. The output MUST have the exact same number of lines as the input. DO NOT remove or modify previous rules. DO NOT modify or re-translate previous lines. If there is a delay, wait, but NEVER skip."
 )
 
+DEEPSEEK_PROMPT = (
+    "You are a professional Anime Subtitler. Use the Phase 1 analysis to translate into punchy, Street-Style Hinglish.\n\n"
+    "SOCIAL HIERARCHY RULES:\n"
+    "- elder_master: Use 'Aap' (Endings: -iye, -hain).\n"
+    "- formal: Use 'Tum' (Endings: -o, -hai).\n"
+    "- friends: Use 'Tum' or 'Tu' (Conversational).\n"
+    "- enemies: Use 'Tu' or 'Abey' (Harsh endings).\n\n"
+    "GENDER TERMINATIONS:\n"
+    "- MALE: 'Raha hoon', 'Karta hoon', 'Gaya tha', 'Samajh gaya'.\n"
+    "- FEMALE: 'Rahi hoon', 'Karti hoon', 'Gayi thi', 'Samajh gayi'.\n\n"
+    "MASTER WORD-LIST:\n"
+    "1. This/It ➔ Isey | 2. That/Him/Her ➔ Usey | 3. They/Them ➔ Wo log / Unhe | 4. Who ➔ Kaun | 5. My/Mine ➔ Mera / Mere\n"
+    "6. You (Respect) ➔ Aap | 7. You (Casual) ➔ Tum | 8. You (Aggressive) ➔ Tu / Abey | 9. Your/Yours ➔ Tera / Tumhara | 10. Everyone ➔ Sab / Sab log\n"
+    "11. Actually ➔ Asal mein | 12. Anyway ➔ Khair / Chodo usey | 13. But ➔ Par / Lekin | 14. Wait ➔ Ruk / Wait kar | 15. Sorry ➔ Maaf karna\n"
+    "16. Help ➔ Madad / Help | 17. Please ➔ Please / Zara | 18. Excuse me ➔ Suno / Suniye | 19. Hey ➔ Abey / Oye | 20. Listen ➔ Sun / Meri baat sun\n"
+    "21. Right? ➔ Hai na? | 22. Seriously? ➔ Serious ho? / Mazak kar rahe ho? | 23. Damn/Shit ➔ Lanaat hai / Satyanash / Teri toh | 24. Brother ➔ Bhai / Bhaiyya | 25. Sir/Master ➔ Sir / Malik / Master\n"
+    "26. Look/See ➔ Dekh / Dekho | 27. Understand ➔ Samajh gaya / Samajh raha hai | 28. Go/Gone ➔ Niklo / Chala gaya | 29. Come ➔ Aa / Aao | 30. Stop ➔ Ruko / Bas kar\n"
+    "31. Start ➔ Shuru kar / Shuru ho jao | 32. Kill ➔ Khatam kar dunga / Maar dunga | 33. Die ➔ Mar jaa / Maut | 34. Live ➔ Zinda / Jeena | 35. Win ➔ Jeet / Jeetna\n"
+    "36. Lose ➔ Haar / Haar gaya | 37. Strong ➔ Taqatwar / Mazboot | 38. Weak ➔ Kamzor | 39. Protect ➔ Bachana / Hifazat karna | 40. Attack ➔ Hamla / Attack\n"
+    "41. Why ➔ Kyun | 42. How ➔ Kaise | 43. What ➔ Kya | 44. Where ➔ Kahan | 45. When ➔ Kab | 46. Maybe ➔ Shayad | 47. Sure/Of course ➔ Bilkul / Haan kyun nahi\n"
+    "48. Problem ➔ Dikkat / Problem / Lafda | 49. Everything ➔ Sab kuch | 50. Nothing ➔ Kuch nahi | 51. Someone ➔ Koi | 52. Shut up ➔ Chup kar / Mooh band rakh\n"
+    "53. Don't worry ➔ Fikar mat kar / Tension mat le | 54. I see ➔ Achha toh ye baat hai / Samajh gaya | 55. Amazing/Cool ➔ Gazab / Zabardast | 56. Scared ➔ Dar gaya / Khauf | 57. Angry ➔ Gussa\n"
+    "58. Happy ➔ Khush | 59. Sad ➔ Dukhi / Pareshan | 60. Beautiful/Pretty ➔ Khoobsurat / Pyari | 61. Magic ➔ Magic / Jadoo | 62. Level ➔ Level\n"
+    "63. System ➔ System | 64. Status ➔ Status | 65. Skill ➔ Skill / Hunar | 66. Power ➔ Power / Taqat | 67. Quest/Task ➔ Kam / Mission\n"
+    "68. Points ➔ Points | 69. Monster ➔ Monster / Rakshas | 70. Dungeon ➔ Dungeon / Gufa | 71. Already ➔ Pehle hi | 72. Still ➔ Abhi bhi | 73. Again ➔ Phir se\n"
+    "74. Never ➔ Kabhi nahi | 75. Forever ➔ Hamesha ke liye | 76. Enough ➔ Kaafi hai | 77. Too much ➔ Bohot zyada | 78. Little bit ➔ Thoda sa | 79. Actually ➔ Sach bolu toh\n"
+    "80. Believe ➔ Yakeen / Bharosa | 81. I am sorry ➔ Mujhe maaf kar do / I'm sorry | 82. I will do it (M) ➔ Main ye kar dunga | 83. I will do it (F) ➔ Main ye kar dungi | 84. Where are you going? (Elder) ➔ Aap kahan ja rahe hain?\n"
+    "85. Where are you going? (Friend) ➔ Tu kahan ja raha hai? | 86. Don't touch me! ➔ Mujhe haat mat lagana! | 87. Look at this ➔ Isey dekho | 88. Get out ➔ Niklo yahan se / Bahar nikal\n\n"
+    "CORE DIRECTIVES:\n"
+    "- Translate this batch into Hinglish. Keep ' || ' separators exactly where they are.\n"
+    "- No explanations.\n"
+    "- No <think> tags.\n"
+    "- No skipping.\n"
+    "- 1:1 segment matching is mandatory.\n"
+    "- If it fails, retry indefinitely (No 3-cycle limit)."
+)
+
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
 TRANSLATE_TEXT = """<blockquote>✨ ᴅᴜᴀʟ-ᴇɴɢɪɴᴇ ᴛʀᴀɴsʟᴀᴛɪᴏɴ sʏsᴛᴇᴍ ✨
 ᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.</blockquote>
@@ -266,22 +303,27 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
             # Phase 2: The Translator
             if engine == "deepseek":
                 await edit_msg(status_msg, f"⏳ [𝐃𝐞𝐞𝐩𝐒𝐞𝐞𝐤] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-                res = await call_deepseek(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", deepseek_token, temperature=temp)
+                batch_chunk = " || ".join(cleaned_lines)
+                res = await call_deepseek(DEEPSEEK_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{batch_chunk}", deepseek_token, temperature=temp)
 
                 if res == "429":
                     await edit_msg(status_msg, f"⚠️ DeepSeek Rate Limited. Waiting 180s...")
                     await asyncio.sleep(180)
                     continue # Retry same chunk
                 elif res in ["RETRY_REQUIRED", "503"] or res.startswith("❌"):
-                    await asyncio.sleep(5)
+                    await edit_msg(status_msg, f"⚠️ DeepSeek Error. Waiting 180s...")
+                    await asyncio.sleep(180)
                     continue
                 else:
+                    # Strip DeepSeek thinking tags explicitly as safety precaution
+                    res = re.sub(r'<think>.*?</think>', '', res, flags=re.DOTALL).strip()
                     # Extraction and Verification
-                    res_lines = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
+                    res_lines = [l.strip() for l in res.split("||")]
                     if len(res_lines) != len(original_lines):
                         LOGGER.warning(f"Line count mismatch in chunk {idx+1}: Expected {len(original_lines)}, got {len(res_lines)}. Retrying...")
                         temp = min(temp + 0.1, 0.5)
-                        await asyncio.sleep(2)
+                        await edit_msg(status_msg, f"⚠️ Line count mismatch. Waiting 180s...")
+                        await asyncio.sleep(180)
                         continue
 
                     for trans_line in res_lines:
@@ -329,7 +371,7 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
 
             if not success:
                 full_cycle_count += 1
-                if full_cycle_count >= 999:
+                if full_cycle_count >= 999 and engine != "deepseek":
                     LOGGER.error(f"CHUNK STALL DETECTED: Chunk {idx+1} failed 999 full cycles. Content:\n{xml_chunk}")
                     await edit_msg(status_msg, f"⚠️ Chunk {idx+1} failed 999 times. Skipping as last resort...")
                     # Fallback to original lines (protected but untranslated)
