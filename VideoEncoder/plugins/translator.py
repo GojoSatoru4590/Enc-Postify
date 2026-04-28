@@ -123,6 +123,15 @@ def restore_tags(text, placeholders):
         text = text.replace(placeholder, tag, 1)
     return text
 
+def clean_text_for_ai(text):
+    """Strips unusual symbols, stray HTML tags, and non-printable characters."""
+    # Remove any stray HTML tags (legitimate ones are already protected as __TAG_i__)
+    text = re.sub(r'<[^>]+>', '', text)
+    # Keep only printable characters and common whitespace
+    text = "".join(c for c in text if c.isprintable() or c in ['\n', '\r', '\t'])
+    # Strip excessive special characters at start/end but keep placeholders
+    return text.strip()
+
 def parse_ass(content):
     lines = content.replace('\r\n', '\n').split('\n')
     header = []
@@ -184,28 +193,28 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
     idx = 0
     trans_key_idx = 1 # Start rotation from Key 2 (index 1)
 
-    # Process original to_translate lines to include XML tagging for Phase 2
-    # chunk_queue currently has 10 lines joined by \n with [name]: prefix
-    # We will rebuild it with <t> tags inside translate loop for more control
-
     while idx < len(chunk_queue):
         # original_lines are protected lines without [name] prefix
         original_lines = to_translate[idx*10 : (idx+1)*10]
         # chunk is the one with [name] prefixes
         raw_lines_with_names = chunk_queue[idx].split('\n')
-        xml_chunk = "\n".join([f"<t>{line}</t>" for line in raw_lines_with_names])
+        # Apply cleaning to raw lines before XML tagging
+        cleaned_lines = [clean_text_for_ai(line) for line in raw_lines_with_names]
+        xml_chunk = "\n".join([f"<t>{line}</t>" for line in cleaned_lines])
+        cleaned_chunk = "\n".join(cleaned_lines)
 
         success = False
         temp = 0.2
+        full_cycle_count = 0
         while not success:
             # Phase 1: The Analyst (Key 1 ONLY)
             api_key_1 = api_pool[0]
             await edit_msg(status_msg, f"⏳ [𝐀𝐧𝐚𝐥𝐲𝐬𝐭] : Analyzing chunk {idx+1}/{len(chunk_queue)}...")
-            analysis_res = await call_groq(ANALYZER_PROMPT, chunk_queue[idx], api_key_1)
+            analysis_res = await call_groq(ANALYZER_PROMPT, cleaned_chunk, api_key_1)
 
             if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
                 await asyncio.sleep(5)
-                analysis_res = await call_groq(ANALYZER_PROMPT, chunk_queue[idx], api_key_1)
+                analysis_res = await call_groq(ANALYZER_PROMPT, cleaned_chunk, api_key_1)
                 if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
                     analysis_res = '{"gender": "neutral", "hierarchy": "friends", "tone": "casual", "context": "general anime scene"}'
 
@@ -217,7 +226,7 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                 res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", api_key_trans, temperature=temp)
 
                 if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(0.5) # Immediate Rotation
                     trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
                     keys_tried += 1
                 else:
@@ -226,7 +235,7 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                     if len(res_lines) != len(original_lines):
                         LOGGER.warning(f"Line count mismatch in chunk {idx+1}: Expected {len(original_lines)}, got {len(res_lines)}. Retrying...")
                         temp = min(temp + 0.1, 0.5)
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(0.5) # Immediate Rotation
                         trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
                         keys_tried += 1
                         continue
@@ -248,10 +257,19 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                     break
 
             if not success:
-                await edit_msg(status_msg, f"⚠️ All keys failed or verification failed for chunk {idx+1}. Emergency pause 15s...")
+                full_cycle_count += 1
+                if full_cycle_count >= 3:
+                    LOGGER.error(f"CHUNK STALL DETECTED: Chunk {idx+1} failed 3 full cycles. Content:\n{xml_chunk}")
+                    await edit_msg(status_msg, f"⚠️ Chunk {idx+1} failed 3 times. Skipping to avoid stall...")
+                    # Fallback to original lines (protected but untranslated)
+                    for orig in original_lines:
+                        translated_texts.append(orig)
+                    success = True
+                    break
+
+                await edit_msg(status_msg, f"⚠️ All keys failed for chunk {idx+1}. Cycle {full_cycle_count}/3. Emergency pause 15s...")
                 await asyncio.sleep(15)
                 temp = 0.2 # Reset temp for fresh start
-                # Loop will restart from Phase 1
 
         idx += 1
     return None, translated_texts
