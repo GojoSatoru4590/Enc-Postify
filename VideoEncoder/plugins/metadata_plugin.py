@@ -11,17 +11,17 @@ async def get_metadata_menu(user_id):
     is_on = await db.get_metadata_on(user_id)
 
     if is_on:
-        on_text, off_text = "ON ✅", "ON"
+        on_text, off_text = "ON ✅", "OFF"
     else:
-        on_text, off_text = "OFF", "OFF ✅"
+        on_text, off_text = "ON", "OFF ✅"
 
     buttons = [
         [
-            InlineKeyboardButton(on_text, callback_data="metadata_on"),
-            InlineKeyboardButton(off_text, callback_data="metadata_off")
+            InlineKeyboardButton(on_text, callback_data="meta_on"),
+            InlineKeyboardButton(off_text, callback_data="meta_off")
         ],
         [
-            InlineKeyboardButton("CLOSE ✖️", callback_data="close_btn")
+            InlineKeyboardButton("CLOSE ✖️", callback_data="close_meta")
         ]
     ]
     return METADATA_HELP_TEXT, InlineKeyboardMarkup(buttons)

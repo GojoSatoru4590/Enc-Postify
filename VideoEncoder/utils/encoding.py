@@ -664,9 +664,9 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     if has_watermark:
         w_idx = 2 if thumb_path else 1
         if vf_list:
-            filter_str = f"[0:v]{','.join(vf_list)}[vbase];[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];[vbase][wm]overlay=W-w-10:10[v_out]"
+            filter_str = f"[0:v]{','.join(vf_list)}[vbase];[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[vbase][ck]overlay=W-w-10:10[v_out]"
         else:
-            filter_str = f"[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];[0:v][wm]overlay=W-w-10:10[v_out]"
+            filter_str = f"[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[0:v][ck]overlay=W-w-10:10[v_out]"
         command.extend(['-filter_complex', filter_str])
         video_map_arg = ['-map', '[v_out]']
     elif vf_list:
@@ -893,12 +893,16 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     if has_watermark:
         command.extend(['-i', watermark_file])
         watermark_input_index = 2 if thumb_path else 1
+        if vf_list:
+            filter_str = f"[0:v]{','.join(vf_list)}[vbase];[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[vbase][ck]overlay=W-w-10:10[v_out]"
+        else:
+            filter_str = f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];[0:v][ck]overlay=W-w-10:10[v_out]"
+        command.extend(['-filter_complex', filter_str])
+        video_map_arg = ['-map', '[v_out]']
     else:
         watermark_input_index = -1
-
-    # Filter & Mapping - Simplified to prioritize sync
-    command.extend(['-vf', ",".join(vf_list)])
-    video_map_arg = ['-map', '0:v:0']
+        command.extend(['-vf', ",".join(vf_list)])
+        video_map_arg = ['-map', '0:v:0']
 
     command.extend(video_map_arg)
 
@@ -1033,11 +1037,11 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             filter_str = ""
             if vf_list:
                 filter_str += f"[0:v:0]{','.join(vf_list)}[vbase];"
-                filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
-                filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
+                filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];"
+                filter_str += f"[vbase][ck]overlay=W-w-10:10[v_out]"
             else:
-                filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
-                filter_str += f"[0:v:0][wm]overlay=W-w-10:10[v_out]"
+                filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[ck];"
+                filter_str += f"[0:v:0][ck]overlay=W-w-10:10[v_out]"
             command.extend(['-filter_complex', filter_str])
             video_map_arg = ['-map', '[v_out]']
         else:
@@ -1068,7 +1072,6 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             thumb_input_index = -1
 
         if thumb_path:
-            command.extend(['-i', thumb_path])
             command.extend([
                 '-map', '0:v:0', '-map', '0:a?', '-map', '1:s', '-map', '2:v:0',
                 '-c', 'copy', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'
