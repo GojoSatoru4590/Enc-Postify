@@ -1,33 +1,18 @@
-from ..utils.common import edit_msg
 from VideoEncoder import LOGGER
 
 
 import os
-import shutil
 import time
-import shlex
-from os import execl as osexecl
-from subprocess import run as srun
-from sys import executable
-from time import time
-
-from psutil import (boot_time, cpu_count, cpu_percent, disk_usage,
-                    net_io_counters, swap_memory, virtual_memory)
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 
-from .. import botStartTime, download_dir, encode_dir
-from ..utils.database.access_db import db
-from ..utils.database.add_user import AddUserToDatabase
-from ..utils.display_progress import TimeFormatter, humanbytes
-from ..utils.helper import check_chat, delete_downloads
+from .. import botStartTime
+from ..utils.display_progress import TimeFormatter
 from ..utils.common import start_but
-
-SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 
 START_PIC = "https://graph.org/file/a43e51fdee6998d7074e0-c9255fe3e80803a9a9.jpg"
 FORCE_PIC = "https://graph.org/file/a0947a8895736ff574666-422dfa95e7395c7142.jpg"
-START_MSG = "<b>ʜᴇʏ!!, {mention} ~\n\nYou woke me up!\n\n<blockquote expandable>I was having such a great dream about world domination... err, I mean, serving you efficiently.\n\nReady to start the show? Send me a video file and let's roll!</blockquote></b>"
+START_MSG = "<b>ʜᴇʏ!!, {mention} ~\n\nᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴛʜᴇ ᴀᴅᴠᴀɴᴄᴇᴅ ᴄʜᴀɴɴᴇʟ ᴍᴀɴᴀɢᴇʀ ʙᴏᴛ! <blockquote expandable>ɪ ᴄᴀɴ ʜᴇʟᴘ ʏᴏᴜ ᴍᴀɴᴀɢᴇ ʏᴏᴜʀ ᴄʜᴀɴɴᴇʟꜱ, ꜱᴄʜᴇᴅᴜʟᴇ ᴘᴏꜱᴛꜱ, ᴀɴᴅ ᴍᴏʀᴇ ᴡɪᴛʜ ᴇᴀꜱᴇ. ᴜꜱᴇ /ᴍᴇɴᴜ ᴛᴏ ᴇxᴘʟᴏʀᴇ ᴛʜᴇ ᴀᴠᴀɪʟᴀʙʟᴇ ғᴇᴀᴛᴜʀᴇꜱ.</blockquote></b>"
 
 
 def uptime():
@@ -37,10 +22,11 @@ def uptime():
 
 @Client.on_message(filters.command('start'))
 async def start_message(app, message):
+    from ..utils.helper import check_chat
     c = await check_chat(message, chat='Both')
     if not c:
         return await message.reply_photo(photo=FORCE_PIC, caption="<b>You are not authorized to use this bot!</b>", has_spoiler=True)
-    await AddUserToDatabase(app, message)
+
     user = message.from_user
     name = f"{user.first_name} {user.last_name}" if user.last_name else user.first_name
     link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
@@ -51,10 +37,10 @@ async def start_message(app, message):
 @Client.on_message(filters.command('help'))
 async def help_message(app, message):
     from ..utils.common import HELP_TEXT
+    from ..utils.helper import check_chat
     c = await check_chat(message, chat='Both')
     if not c:
         return
-    await AddUserToDatabase(app, message)
 
     buttons = [
         [
@@ -67,115 +53,12 @@ async def help_message(app, message):
 
 
 @Client.on_message(filters.command('stats'))
-async def show_status_count(_, event: Message):
-    c = await check_chat(event, chat='Both')
+async def show_status_count(_, message: Message):
+    from ..utils.helper import check_chat
+    c = await check_chat(message, chat='Both')
     if not c:
         return
-    await AddUserToDatabase(_, event)
-    text = await show_status(_)
-    await event.reply_text(text)
 
-
-async def show_status(_):
-    currentTime = TimeFormatter(time() - botStartTime)
-    osUptime = TimeFormatter(time() - boot_time())
-    total, used, free, disk = disk_usage('/')
-    total = humanbytes(total)
-    used = humanbytes(used)
-    free = humanbytes(free)
-    sent = humanbytes(net_io_counters().bytes_sent)
-    recv = humanbytes(net_io_counters().bytes_recv)
-    cpuUsage = cpu_percent(interval=0.5)
-    p_core = cpu_count(logical=False)
-    t_core = cpu_count(logical=True)
-    swap = swap_memory()
-    swap_p = swap.percent
-    memory = virtual_memory()
-    mem_t = humanbytes(memory.total)
-    mem_a = humanbytes(memory.available)
-    mem_u = humanbytes(memory.used)
-    total_users = await db.total_users_count()
-    text = f"""<b>Uptime of</b>:
-- <b>Bot:</b> {currentTime}
-- <b>OS:</b> {osUptime}
-
-<b>Disk</b>:
-<b>- Total:</b> {total}
-<b>- Used:</b> {used}
-<b>- Free:</b> {free}
-
-<b>UL:</b> {sent} | <b>DL:</b> {recv}
-<b>CPU:</b> {cpuUsage}%
-
-<b>Cores:</b>
-<b>- Physical:</b> {p_core}
-<b>- Total:</b> {t_core}
-<b>- Used:</b> {swap_p}%
-
-<b>RAM:</b> 
-- <b>Total:</b> {mem_t}
-- <b>Free:</b> {mem_a}
-- <b>Used:</b> {mem_u}
-
-Users: {total_users}"""
-    return text
-
-
-async def showw_status(_):
-    currentTime = TimeFormatter(time() - botStartTime)
-    total, used, free, disk = disk_usage('/')
-    total = humanbytes(total)
-    used = humanbytes(used)
-    free = humanbytes(free)
-    cpuUsage = cpu_percent(interval=0.5)
-    total_users = await db.total_users_count()
-
-    text = f"""Uptime of Bot: {currentTime}
-
-Disk:
-- Total: {total}
-- Used: {used}
-- Free: {free}
-CPU: {cpuUsage}%
-
-Users: {total_users}"""
-    return text
-
-
-@Client.on_message(filters.command('clean'))
-async def delete_files(_, message):
-    c = await check_chat(message, chat='Sudo')
-    if not c:
-        return
-    delete_downloads()
-    await message.reply_text('Deleted all junk files!')
-
-
-@Client.on_message(filters.command('restart'))
-async def font_message(app, message):
-    c = await check_chat(message, chat='Sudo')
-    if not c:
-        return
-    await AddUserToDatabase(app, message)
-    reply = await message.reply_text('Restarting...')
-    textx = f"Done Restart...✅"
-    await edit_msg(reply, text=textx)
-    try:
-        exit()
-    finally:
-        osexecl(executable, executable, "-m", "VideoEncoder")
-
-
-@Client.on_message(filters.command('update'))
-async def update_message(app, message):
-    c = await check_chat(message, chat='Sudo')
-    if not c:
-        return
-    await AddUserToDatabase(app, message)
-    reply = await message.reply_text('📶 Fetching Update...')
-    textx = f"✅ Bot Updated"
-    await edit_msg(reply, text=textx)
-    try:
-        await app.stop()
-    finally:
-        srun("bash run.sh", shell=True)
+    currentTime = TimeFormatter(time.time() - botStartTime)
+    text = f"<b>Uptime:</b> {currentTime}"
+    await message.reply_text(text)
