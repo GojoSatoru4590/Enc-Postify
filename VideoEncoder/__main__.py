@@ -1,4 +1,4 @@
-
+import asyncio
 import dns.resolver
 from pyrogram import idle
 
