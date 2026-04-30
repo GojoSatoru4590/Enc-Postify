@@ -4,41 +4,29 @@ from pyrogram import Client
 from ..utils.database.channel_db import channel_db
 from datetime import datetime
 import json
+import pytz
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-SMALL_CAPS_MAP = str.maketrans(
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
-    "ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ"
-)
-
-def to_small_caps(text):
-    return text.translate(SMALL_CAPS_MAP)
+from .button_parser import parse_buttons
 
 async def scheduler_loop(bot: Client):
     while True:
         try:
-            pending_posts = await channel_db.get_pending_posts()
+            # get_pending_posts currently uses datetime.now().isoformat() which is local.
+            # We should probably change it to UTC in DB or handle it here.
+            # Since we saved in UTC isoformat, we need to compare in UTC.
+
+            async def get_pending_posts_utc():
+                current_time = datetime.now(pytz.UTC).isoformat()
+                return await channel_db._run_query('SELECT * FROM scheduled_posts WHERE status = "pending" AND scheduled_time <= ?', (current_time,), fetch=True)
+
+            pending_posts = await get_pending_posts_utc()
             for post in pending_posts:
                 chat_ids = json.loads(post['chat_ids'])
+                user_id = post['user_id']
+                settings = await channel_db.get_user_settings(user_id)
 
                 # Parse buttons
-                reply_markup = None
-                if post['buttons']:
-                    rows = []
-                    for line in post['buttons'].split("|"):
-                        row = []
-                        buttons = line.split(";") if ";" in line else [line]
-                        for btn in buttons:
-                            if " - " in btn:
-                                text, url = btn.split(" - ", 1)
-                                text = text.strip()
-                                url = url.strip()
-                                if "#g" in text: text = text.replace("#g", "✅").strip()
-                                elif "#r" in text: text = text.replace("#r", "🔴").strip()
-                                elif "#p" in text: text = text.replace("#p", "🔵").strip()
-                                row.append(InlineKeyboardButton(to_small_caps(text), url=url))
-                        if row: rows.append(row)
-                    if rows: reply_markup = InlineKeyboardMarkup(rows)
+                reply_markup = parse_buttons(post['buttons'], settings['font_style'])
 
                 for chat_id in chat_ids:
                     try:

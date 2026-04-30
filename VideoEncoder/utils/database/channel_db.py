@@ -53,6 +53,33 @@ class ChannelDB:
                     buttons TEXT
                 )
             ''')
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS user_settings (
+                    user_id INTEGER PRIMARY KEY,
+                    font_style TEXT DEFAULT 'ꜱᴍᴀʟʟ ᴄᴀᴘꜱ',
+                    timezone TEXT DEFAULT 'UTC'
+                )
+            ''')
+            await db.commit()
+
+    async def get_user_settings(self, user_id):
+        res = await self._run_query('SELECT * FROM user_settings WHERE user_id = ?', (user_id,), fetch=True)
+        if res:
+            return dict(res[0])
+        # Default settings if not found
+        return {'user_id': user_id, 'font_style': 'ꜱᴍᴀʟʟ ᴄᴀᴘꜱ', 'timezone': 'UTC'}
+
+    async def update_user_settings(self, user_id, **kwargs):
+        if not kwargs:
+            return
+
+        columns = ', '.join([f"{k} = ?" for k in kwargs.keys()])
+        values = list(kwargs.values()) + [user_id]
+
+        async with aiosqlite.connect(self.db_path) as db:
+            # Try to insert first to ensure user exists
+            await db.execute('INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)', (user_id,))
+            await db.execute(f'UPDATE user_settings SET {columns} WHERE user_id = ?', values)
             await db.commit()
 
     async def add_channel(self, chat_id, title, username):
