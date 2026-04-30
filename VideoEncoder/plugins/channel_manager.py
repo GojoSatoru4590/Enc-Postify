@@ -16,7 +16,7 @@ from ..utils.database.channel_db import channel_db
 from .. import owner, log as LOG_CHANNEL
 from ..utils.helper import check_chat
 
-# Small Caps Mapping - Using ꜱ (U+A731) for s
+# Small Caps Mapping
 SMALL_CAPS_MAP = str.maketrans(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     "ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ"
@@ -25,7 +25,6 @@ SMALL_CAPS_MAP = str.maketrans(
 def to_small_caps(text):
     if not text:
         return text
-    # Protect HTML tags
     parts = re.split(r'(<[^>]+>)', text)
     transformed = []
     for part in parts:
@@ -89,13 +88,14 @@ async def show_step_1(message_or_query):
 
 @Client.on_message(filters.private & ~filters.command(["start", "menu", "help", "settings"]))
 async def message_input_handler(bot: Client, message: Message):
-    # Check if user is in any specific state
-    # For now we use simple heuristics based on content
+    c = await check_chat(message, chat='Both')
+    if not c:
+        return
 
-    # If message is a date/time and we have a draft with buttons, it's likely scheduling
     draft = await channel_db.get_draft(message.from_user.id)
+
+    # Handle scheduling input
     if draft and draft['buttons'] and (":" in message.text or "at" in message.text.lower() or "tomorrow" in message.text.lower()):
-        # Handle scheduling via the other handler by letting it through or calling it
         return await schedule_input_handler(bot, message)
 
     # Step 3 logic: Expecting media or text for the post
@@ -176,8 +176,8 @@ async def cb_step_4(bot, query):
     current_buttons = draft['buttons'] if draft and draft['buttons'] else "None"
 
     caption = f"<blockquote>{QUOTE_STEP_4}</blockquote>\n\n"
-    caption += to_small_caps(f"⧗ ꜱᴇᴛ ʙᴜᴛᴛᴏɴꜱ ғᴏʀ ᴀɴɪᴍᴇ\n")
-    caption += to_small_caps(f"ᴄᴜʀʀᴇɴᴛ: • ᴊᴏɪɴ ɴᴏᴡ ᴛᴏ ᴡᴀᴛᴄʜ • - {current_buttons}\n\n")
+    caption += to_small_caps(f"⧗ ꜱᴇᴛ ʙᴜᴛᴛᴏɴꜱ ғᴏʀ ᴘᴏꜱᴛ\n")
+    caption += to_small_caps(f"ᴄᴜʀʀᴇɴᴛ: {current_buttons}\n\n")
     caption += to_small_caps("FORMAT: Text - {link}\n")
     caption += to_small_caps("MULTIPLE: Join - {link} | Group - {link}\n")
     caption += to_small_caps("COLORED TAGS: #g (Green/✅), #r (Red/🔴), #p (Primary/🔵)")
@@ -218,11 +218,9 @@ async def cb_privacy(bot, query):
 @Client.on_callback_query(filters.regex("^back_start$"))
 async def cb_back_start(bot, query):
     from .start import start_message
-    # We need a message object to call start_message
     await query.message.delete()
     await start_message(bot, query)
 
-# Admin Trigger
 @Client.on_chat_member_updated()
 async def admin_added_handler(bot: Client, update: ChatMemberUpdated):
     if not update.new_chat_member:
@@ -234,7 +232,6 @@ async def admin_added_handler(bot: Client, update: ChatMemberUpdated):
 
         if new_status in ["administrator", "creator"] and old_status not in ["administrator", "creator"]:
             chat = update.chat
-            await channel_db.init()
             await channel_db.add_channel(chat.id, chat.title, chat.username)
 
             for admin_id in owner:
@@ -302,7 +299,10 @@ async def cb_send_post(bot, query):
         except Exception as e:
             print(f"Error sending to {channel['chat_id']}: {e}")
 
-    await query.message.edit_caption(to_small_caps(f"✅ ᴘᴏꜱᴛ ꜱᴇɴᴛ ᴛᴏ {success} ᴄʜᴀɴɴᴇʟꜱ!"))
+    await query.message.edit_media(
+        media=InputMediaPhoto(IMG_STEP_1, caption=to_small_caps(f"✅ ᴘᴏꜱᴛ ꜱᴇɴᴛ ᴛᴏ {success} ᴄʜᴀɴɴᴇʟꜱ!")),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(to_small_caps("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ"), callback_data="cm_step_1")]])
+    )
     await channel_db.delete_draft(query.from_user.id)
 
 @Client.on_callback_query(filters.regex("^cm_schedule_post$"))
@@ -317,7 +317,6 @@ async def schedule_input_handler(bot: Client, message: Message):
 
     dt = dateparser.parse(message.text)
     if not dt:
-        # If it wasn't meant to be a date, just ignore it and let message_input_handler take it if possible
         return
 
     if dt < datetime.now():
@@ -336,5 +335,8 @@ async def schedule_input_handler(bot: Client, message: Message):
         dt.isoformat()
     )
 
-    await message.reply_text(to_small_caps(f"✅ ᴘᴏꜱᴛ ꜱᴄʜᴇᴅᴜʟᴇᴅ ғᴏʀ {dt.strftime('%d/%m/%y %H:%M')}"))
+    await message.reply_text(
+        to_small_caps(f"✅ ᴘᴏꜱᴛ ꜱᴄʜᴇᴅᴜʟᴇᴅ ғᴏʀ {dt.strftime('%d/%m/%y %H:%M')}"),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(to_small_caps("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ"), callback_data="cm_step_1")]])
+    )
     await channel_db.delete_draft(message.from_user.id)

@@ -16,8 +16,13 @@ class ChannelDB:
                     return await cursor.fetchall()
                 await db.commit()
 
-    async def init(self):
+    async def init(self, clean=False):
         async with aiosqlite.connect(self.db_path) as db:
+            if clean:
+                await db.execute('DROP TABLE IF EXISTS channels')
+                await db.execute('DROP TABLE IF EXISTS scheduled_posts')
+                await db.execute('DROP TABLE IF EXISTS draft_posts')
+
             await db.execute('''
                 CREATE TABLE IF NOT EXISTS channels (
                     chat_id INTEGER PRIMARY KEY,
